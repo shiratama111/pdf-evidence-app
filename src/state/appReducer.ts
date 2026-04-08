@@ -288,8 +288,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, isAiProcessing: false };
 
     // ── Stamp & Evidence ──
-    case 'STAMP_ENABLED_TOGGLED':
-      return { ...state, stampEnabled: !state.stampEnabled };
+    case 'STAMP_ENABLED_TOGGLED': {
+      const newStampEnabled = !state.stampEnabled;
+      if (!newStampEnabled) {
+        return { ...state, stampEnabled: false };
+      }
+      // ONにしたとき、自動採番も実行
+      return appReducer({ ...state, stampEnabled: true }, { type: 'EVIDENCE_NUMBERS_AUTO_ASSIGN' });
+    }
 
     case 'STAMP_SETTINGS_UPDATED': {
       const newSettings = { ...state.stampSettings, ...action.payload.settings };
@@ -312,11 +318,41 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'EVIDENCE_NUMBERS_AUTO_ASSIGN': {
       let num = state.stampSettings.startNum;
-      const newSegments = state.segments.map(s => {
-        const seg = { ...s, evidenceNumber: { main: num, sub: null } };
-        num++;
-        return seg;
-      });
+      const newSegments: typeof state.segments = [];
+      const processedGroups = new Set<string>();
+
+      for (let i = 0; i < state.segments.length; i++) {
+        const seg = state.segments[i];
+
+        if (seg.groupId) {
+          if (processedGroups.has(seg.groupId)) {
+            // 同グループの後続 → 既にmainNumが決まっている
+            newSegments.push(seg); // 後でまとめて枝番を振る
+            continue;
+          }
+          // グループの最初のセグメント → このグループ全体で1つのmainNum
+          processedGroups.add(seg.groupId);
+          const mainNum = num;
+          num++;
+          // グループ内の全セグメントに枝番を振る
+          let sub = 1;
+          for (let j = i; j < state.segments.length; j++) {
+            if (state.segments[j].groupId !== seg.groupId) break;
+            newSegments.push({
+              ...state.segments[j],
+              evidenceNumber: { main: mainNum, sub },
+            });
+            sub++;
+          }
+          // 既にグループ分をpushしたのでスキップ
+          i += sub - 2; // -1 (for文のi++) + -1 (最初の1つは既にカウント)
+        } else {
+          // グループ外 → 単独番号
+          newSegments.push({ ...seg, evidenceNumber: { main: num, sub: null } });
+          num++;
+        }
+      }
+
       return { ...state, segments: newSegments };
     }
 
@@ -410,6 +446,38 @@ export function appReducer(state: AppState, action: AppAction): AppState {
           ? { ...s, groupId: null, evidenceNumber: s.evidenceNumber ? { main: s.evidenceNumber.main, sub: null } : null }
           : s
       );
+      return { ...state, segments: newSegments };
+    }
+
+    case 'GROUP_CHILD_REORDERED': {
+      const { groupId, fromSegmentId, toSegmentId } = action.payload;
+      // グループ内のセグメントだけを抽出
+      const groupIndices: number[] = [];
+      state.segments.forEach((s, i) => { if (s.groupId === groupId) groupIndices.push(i); });
+      if (groupIndices.length < 2) return state;
+
+      const fromIdx = groupIndices.findIndex(i => state.segments[i].id === fromSegmentId);
+      const toIdx = groupIndices.findIndex(i => state.segments[i].id === toSegmentId);
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return state;
+
+      // グループ内の並び順を入れ替え
+      const groupSegs = groupIndices.map(i => state.segments[i]);
+      const [moved] = groupSegs.splice(fromIdx, 1);
+      groupSegs.splice(toIdx, 0, moved);
+
+      // 枝番を振り直す
+      const mainNum = groupSegs[0].evidenceNumber?.main ?? 1;
+      const renumbered = groupSegs.map((s, i) => ({
+        ...s,
+        evidenceNumber: { main: mainNum, sub: i + 1 },
+      }));
+
+      // 元の配列に戻す
+      const newSegments = [...state.segments];
+      groupIndices.forEach((origIdx, i) => {
+        newSegments[origIdx] = renumbered[i];
+      });
+
       return { ...state, segments: newSegments };
     }
 

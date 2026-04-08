@@ -1,10 +1,14 @@
+import { useState, useCallback } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
+import { usePdfLoader } from '@/hooks/usePdfLoader';
 import { ThumbnailCard } from './ThumbnailCard';
 import { Scissors, RotateCw, RotateCcw, Trash2 } from 'lucide-react';
 
 export function ThumbnailGrid() {
   const { segments, pages, selectedPageIds } = useAppState();
   const dispatch = useAppDispatch();
+  const { loadFiles } = usePdfLoader();
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const handleSelect = (pageId: string, additive: boolean) => {
     dispatch({ type: 'PAGE_SELECTED', payload: { pageId, additive } });
@@ -29,10 +33,34 @@ export function ThumbnailGrid() {
     dispatch({ type: 'SELECTION_CLEARED' });
   };
 
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    if (e.dataTransfer.files.length > 0) {
+      loadFiles(e.dataTransfer.files);
+    }
+  }, [loadFiles]);
+
+  const handleFileDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDraggingFile(true);
+    }
+  }, []);
+
+  const handleFileDragLeave = useCallback(() => {
+    setIsDraggingFile(false);
+  }, []);
+
   let globalIndex = 0;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div
+      className={`flex-1 overflow-y-auto p-4 transition-colors ${isDraggingFile ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''}`}
+      onDrop={handleFileDrop}
+      onDragOver={handleFileDragOver}
+      onDragLeave={handleFileDragLeave}
+    >
       {/* Toolbar */}
       {selectedPageIds.length > 0 && (
         <div className="sticky top-0 z-10 flex items-center gap-2 mb-3 p-2 bg-white/90 backdrop-blur rounded-lg border border-gray-200 shadow-sm">

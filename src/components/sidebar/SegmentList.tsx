@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
+import { usePdfLoader } from '@/hooks/usePdfLoader';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -53,6 +54,27 @@ function getTreeItemId(item: TreeItem): string {
 export function SegmentList() {
   const { segments, pages, stampEnabled, stampSettings, selectedSegmentIds } = useAppState();
   const dispatch = useAppDispatch();
+  const { loadFiles } = usePdfLoader();
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    if (e.dataTransfer.files.length > 0) {
+      loadFiles(e.dataTransfer.files);
+    }
+  }, [loadFiles]);
+
+  const handleFileDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDraggingFile(true);
+    }
+  }, []);
+
+  const handleFileDragLeave = useCallback(() => {
+    setIsDraggingFile(false);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -129,11 +151,20 @@ export function SegmentList() {
     dispatch({ type: 'SEGMENTS_UNGROUPED', payload: { groupId } });
   }, [dispatch]);
 
+  const handleChildReorder = useCallback((groupId: string, fromSegmentId: string, toSegmentId: string) => {
+    dispatch({ type: 'GROUP_CHILD_REORDERED', payload: { groupId, fromSegmentId, toSegmentId } });
+  }, [dispatch]);
+
   const totalPages = segments.reduce((sum, s) => sum + s.pageIds.length, 0);
   const symbol = getEffectiveSymbol(stampSettings);
 
   return (
-    <div className="w-64 flex-shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col h-full">
+    <div
+      className={`w-64 flex-shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col h-full transition-colors ${isDraggingFile ? 'bg-blue-50' : ''}`}
+      onDrop={handleFileDrop}
+      onDragOver={handleFileDragOver}
+      onDragLeave={handleFileDragLeave}
+    >
       {/* Header */}
       <div className="p-3 border-b border-gray-200 bg-white">
         <div className="flex items-center justify-between">
@@ -199,6 +230,7 @@ export function SegmentList() {
                     isCollapsed={isCollapsed}
                     onToggleCollapse={() => toggleCollapse(item.groupId)}
                     onUngroup={() => handleUngroup(item.groupId)}
+                    onChildReorder={handleChildReorder}
                     onRename={handleRename}
                     onDelete={handleDelete}
                     onMergeNext={handleMergeNext}
@@ -246,6 +278,7 @@ interface GroupFolderProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onUngroup: () => void;
+  onChildReorder: (groupId: string, fromSegmentId: string, toSegmentId: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   onMergeNext: (id: string) => void;
@@ -279,12 +312,22 @@ function SortableGroupFolder(props: GroupFolderProps) {
 }
 
 function GroupFolder({
-  mainNum, childSegments, isCollapsed, onToggleCollapse, onUngroup,
-  onRename, onDelete, onMergeNext,
+  groupId, mainNum, childSegments, isCollapsed, onToggleCollapse, onUngroup,
+  onChildReorder, onRename, onDelete,
   stampEnabled, symbol, format,
   selectedSegmentIds, onToggleSelect,
-  allSegments, dragListeners,
+  dragListeners,
 }: GroupFolderProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const handleChildDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    onChildReorder(groupId, active.id as string, over.id as string);
+  }, [groupId, onChildReorder]);
+
   const totalPages = childSegments.reduce((sum, s) => sum + s.pageIds.length, 0);
   const folderLabel = stampEnabled
     ? `${symbol}${mainNum}号証`
@@ -323,36 +366,38 @@ function GroupFolder({
           </div>
         </div>
 
-        {/* グループ解除 */}
+        {/* グループ解除ボタン（常時表示） */}
         <button
           onClick={(e) => { e.stopPropagation(); onUngroup(); }}
-          className="p-0.5 rounded hover:bg-gray-200 text-gray-400 opacity-0 group-hover:opacity-100"
+          className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 flex items-center gap-0.5 text-[10px]"
           title="グループ解除"
         >
           <Ungroup className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* 子セグメント */}
+      {/* 子セグメント（D&D並び替え可能） */}
       {!isCollapsed && (
         <div className="border-l-2 border-amber-300 border-r border-b border-gray-200 rounded-b bg-white ml-2">
-          {childSegments.map((seg, idx) => (
-            <ChildSegmentItem
-              key={seg.id}
-              segment={seg}
-              isLast={idx === childSegments.length - 1}
-              isLastInAll={allSegments[allSegments.length - 1]?.id === seg.id}
-              pageCount={seg.pageIds.length}
-              onRename={onRename}
-              onDelete={onDelete}
-              onMergeNext={onMergeNext}
-              stampEnabled={stampEnabled}
-              symbol={symbol}
-              format={format}
-              isSelected={selectedSegmentIds.includes(seg.id)}
-              onToggleSelect={onToggleSelect}
-            />
-          ))}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleChildDragEnd}>
+            <SortableContext items={childSegments.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              {childSegments.map((seg, idx) => (
+                <SortableChildSegmentItem
+                  key={seg.id}
+                  segment={seg}
+                  isLast={idx === childSegments.length - 1}
+                  pageCount={seg.pageIds.length}
+                  onRename={onRename}
+                  onDelete={onDelete}
+                  stampEnabled={stampEnabled}
+                  symbol={symbol}
+                  format={format}
+                  isSelected={selectedSegmentIds.includes(seg.id)}
+                  onToggleSelect={onToggleSelect}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         </div>
       )}
     </div>
@@ -501,11 +546,9 @@ function SegmentRow({
 interface ChildSegmentItemProps {
   segment: Segment;
   isLast: boolean;
-  isLastInAll: boolean;
   pageCount: number;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
-  onMergeNext: (id: string) => void;
   stampEnabled: boolean;
   symbol: string;
   format: StampFormat;
@@ -513,10 +556,29 @@ interface ChildSegmentItemProps {
   onToggleSelect: (id: string) => void;
 }
 
+function SortableChildSegmentItem(props: ChildSegmentItemProps) {
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id: props.segment.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <ChildSegmentItem {...props} dragListeners={listeners} />
+    </div>
+  );
+}
+
 function ChildSegmentItem({
   segment, isLast, pageCount, onRename, onDelete,
   stampEnabled, symbol, format, isSelected, onToggleSelect,
-}: ChildSegmentItemProps) {
+  dragListeners,
+}: ChildSegmentItemProps & { dragListeners?: Record<string, unknown> }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(segment.name);
 
@@ -546,6 +608,11 @@ function ChildSegmentItem({
         className="rounded border-gray-300 w-3 h-3 flex-shrink-0 accent-blue-500"
         onClick={(e) => e.stopPropagation()}
       />
+
+      {/* ドラッグハンドル */}
+      <div className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none" {...dragListeners}>
+        <GripVertical className="w-3 h-3 text-gray-300" />
+      </div>
 
       {/* ファイルアイコン */}
       <FileText className="w-3 h-3 text-gray-300 flex-shrink-0" />

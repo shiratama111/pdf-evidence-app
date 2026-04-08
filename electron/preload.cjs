@@ -4,13 +4,26 @@
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
+function toTransferablePdfBytes(bytes) {
+  if (bytes instanceof Uint8Array) {
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  }
+  if (ArrayBuffer.isView(bytes)) {
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  }
+  if (bytes instanceof ArrayBuffer) {
+    return bytes.slice(0);
+  }
+  return Uint8Array.from(bytes).buffer;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   /** 出力先フォルダ選択ダイアログ */
   selectOutputDir: () => ipcRenderer.invoke('select-output-dir'),
 
-  /** PDFバイナリをファイルに保存 */
+  /** PDFバイナリをArrayBuffer化してIPC送信 */
   savePdfFile: (dirPath, filename, bytes) =>
-    ipcRenderer.invoke('save-pdf-file', dirPath, filename, bytes),
+    ipcRenderer.invoke('save-pdf-file', dirPath, filename, toTransferablePdfBytes(bytes)),
 
   /** 出力フォルダをエクスプローラーで開く */
   openOutputDir: (dirPath) => ipcRenderer.invoke('open-output-dir', dirPath),

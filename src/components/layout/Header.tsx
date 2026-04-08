@@ -1,18 +1,19 @@
-import { useRef } from 'react';
-import { useAppState, useAppDispatch } from '@/state/AppContext';
+import { useRef, useState, useEffect } from 'react';
+import { useAppState, useAppDispatch, useUndoRedo } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import { useExport } from '@/hooks/useExport';
 import { useGemini } from '@/hooks/useGemini';
 import {
   FilePlus, Download, RotateCcw, PanelRight,
-  Sparkles, Loader2, Stamp,
+  Sparkles, Loader2, Stamp, Undo2, Redo2,
 } from 'lucide-react';
 
 export function Header() {
   const state = useAppState();
+  const { canUndo, canRedo, undo, redo } = useUndoRedo();
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
-  const { exportAll, isExporting } = useExport();
+  const { exportIndividual, exportMerged, exportSelected, isExporting } = useExport();
   const { analyze, isProcessing: isAiProcessing } = useGemini();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,6 +52,28 @@ export function Header() {
           <RotateCcw className="w-4 h-4" />
           リセット
         </button>
+      )}
+
+      {/* Undo / Redo */}
+      {hasFiles && (
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-30"
+            title="元に戻す (Ctrl+Z)"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-30"
+            title="やり直し (Ctrl+Y)"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
       <div className="flex-1" />
@@ -100,45 +123,85 @@ export function Header() {
       )}
 
       {/* Export */}
-      {hasFiles && (
-        <div className="relative group">
+      {hasFiles && <ExportDropdown
+        isExporting={isExporting}
+        exportIndividual={exportIndividual}
+        exportMerged={exportMerged}
+        exportSelected={exportSelected}
+        selectedCount={state.selectedSegmentIds.length}
+      />}
+    </header>
+  );
+}
+
+function ExportDropdown({ isExporting, exportIndividual, exportMerged, exportSelected, selectedCount }: {
+  isExporting: boolean;
+  exportIndividual: () => void;
+  exportMerged: () => void;
+  exportSelected: () => void;
+  selectedCount: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // 外側クリックで閉じる
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen]);
+
+  const handleAction = (fn: () => void) => {
+    setIsOpen(false);
+    fn();
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isExporting}
+        className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50"
+      >
+        {isExporting ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Download className="w-4 h-4" />
+        )}
+        エクスポート
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[250px]">
           <button
-            onClick={() => exportAll()}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 px-4 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50"
+            onClick={() => handleAction(exportIndividual)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
           >
-            {isExporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
-            )}
-            {state.stampEnabled ? 'エクスポート' : '分割実行'}
+            全てのファイルを個別にエクスポート
           </button>
-          {!state.stampEnabled && (
-            <div className="absolute right-0 top-full mt-1 hidden group-hover:block bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[180px]">
-              <button
-                onClick={() => { dispatch({ type: 'EXPORT_MODE_SET', payload: { mode: 'zip' } }); exportAll(); }}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50"
-              >
-                ZIPでダウンロード
-              </button>
-              <button
-                onClick={() => { dispatch({ type: 'EXPORT_MODE_SET', payload: { mode: 'split_pdfs' } }); exportAll(); }}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50"
-              >
-                個別にダウンロード
-              </button>
-              <hr className="my-1 border-gray-100" />
-              <button
-                onClick={() => dispatch({ type: 'EVIDENCE_NUMBERS_AUTO_ASSIGN' })}
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 text-amber-700 font-medium"
-              >
-                証拠番号を自動割り当て
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => handleAction(exportMerged)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+          >
+            ファイルを統合してエクスポート
+          </button>
+          <hr className="my-1 border-gray-100" />
+          <button
+            onClick={() => handleAction(exportSelected)}
+            disabled={selectedCount === 0}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            選択したファイルをエクスポート
+            {selectedCount > 0 && (
+              <span className="ml-1 text-xs text-blue-500">({selectedCount}件)</span>
+            )}
+          </button>
         </div>
       )}
-    </header>
+    </div>
   );
 }

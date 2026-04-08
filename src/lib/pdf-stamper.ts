@@ -6,6 +6,33 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { StampSettings, StampFormat, EvidenceNumber } from '@/types/pdf';
 
+type RegisteredFontkit = Parameters<PDFDocument['registerFontkit']>[0];
+type FontkitCreate = (buffer: Uint8Array, postscriptName?: string) => unknown;
+type FontCollection = { fonts: unknown[] };
+
+const originalFontkit = fontkit as { create: FontkitCreate };
+
+function isFontCollection(value: unknown): value is FontCollection {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray((value as Partial<FontCollection>).fonts)
+  );
+}
+
+const fontkitWithTtcSupport: RegisteredFontkit = {
+  create: (buffer: Uint8Array, postscriptName?: string) => {
+    const result = originalFontkit.create(buffer, postscriptName);
+    if (isFontCollection(result)) {
+      if (result.fonts.length === 0) {
+        throw new Error('TrueType collection did not contain any fonts.');
+      }
+      return result.fonts[0] as never;
+    }
+    return result as never;
+  },
+};
+
 // ---------------------------------------------------------------------------
 // フォーマット定義
 // ---------------------------------------------------------------------------
@@ -149,7 +176,7 @@ export async function embedJapaneseFont(
   pdfDoc: PDFDocument,
   fontBytes: Uint8Array,
 ): Promise<PDFFont> {
-  pdfDoc.registerFontkit(fontkit as never);
+  pdfDoc.registerFontkit(fontkitWithTtcSupport);
   return await pdfDoc.embedFont(fontBytes, { subset: true });
 }
 

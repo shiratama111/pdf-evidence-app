@@ -2,6 +2,22 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+function toNodeBuffer(bytes) {
+  if (bytes instanceof Uint8Array) {
+    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  }
+  if (ArrayBuffer.isView(bytes)) {
+    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  }
+  if (bytes instanceof ArrayBuffer) {
+    return Buffer.from(bytes);
+  }
+  if (Array.isArray(bytes)) {
+    return Buffer.from(bytes);
+  }
+  throw new TypeError(`Unsupported PDF byte payload: ${Object.prototype.toString.call(bytes)}`);
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1400,
@@ -22,7 +38,7 @@ function createWindow() {
   win.loadFile(indexPath);
 
   // Open DevTools for debugging
-  // win.webContents.openDevTools();
+  win.webContents.openDevTools();
 
   // Remove default menu bar
   win.setMenuBarVisibility(false);
@@ -32,8 +48,22 @@ function createWindow() {
     console.error('Failed to load:', errorCode, errorDescription);
   });
 
+  // Catch renderer crashes
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer crashed:', details);
+  });
+
+  win.webContents.on('did-finish-load', () => {
+    console.log('Page loaded successfully');
+  });
+
   win.on('closed', () => {
     console.log('Window closed');
+  });
+
+  // Prevent window from closing on errors
+  win.on('unresponsive', () => {
+    console.error('Window became unresponsive');
   });
 }
 
@@ -52,12 +82,18 @@ ipcMain.handle('select-output-dir', async () => {
 
 /** PDFバイナリをファイルに保存 */
 ipcMain.handle('save-pdf-file', async (_event, dirPath, filename, bytes) => {
+  const byteLength = typeof bytes?.byteLength === 'number' ? bytes.byteLength : bytes?.length;
+  console.log('[save-pdf-file] dirPath:', dirPath, 'filename:', filename, 'bytes type:', typeof bytes, 'length:', byteLength);
   try {
     fs.mkdirSync(dirPath, { recursive: true });
     const outputPath = path.join(dirPath, filename);
-    fs.writeFileSync(outputPath, Buffer.from(bytes));
+    const buffer = toNodeBuffer(bytes);
+    console.log('[save-pdf-file] writing', buffer.length, 'bytes to', outputPath);
+    fs.writeFileSync(outputPath, buffer);
+    console.log('[save-pdf-file] success:', outputPath);
     return { success: true, path: outputPath };
   } catch (err) {
+    console.error('[save-pdf-file] error:', err.message);
     return { success: false, path: '', error: err.message };
   }
 });

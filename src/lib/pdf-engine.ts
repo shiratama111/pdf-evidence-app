@@ -125,12 +125,18 @@ export async function splitWithStamp(
 
       results.push({ segmentId: seg.id, filename, bytes: pdfBytes, success: true });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error('[splitWithStamp] segment export failed:', {
+        segmentId: seg.id,
+        segmentName: seg.name,
+        error: errorMessage,
+      }, err);
       results.push({
         segmentId: seg.id,
         filename: `${seg.name}.pdf`,
         bytes: new Uint8Array(),
         success: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage,
       });
     }
 
@@ -138,6 +144,42 @@ export async function splitWithStamp(
   }
 
   return results;
+}
+
+/** 全セグメントを1つのPDFに統合して返す */
+export async function mergeAllSegments(
+  sourceFiles: Record<string, SourceFile>,
+  pages: Record<PageId, PdfPage>,
+  segments: Segment[],
+  onProgress?: (segmentIndex: number) => void,
+): Promise<Uint8Array> {
+  const mergedDoc = await PDFDocument.create();
+  const docCache = new Map<string, PDFDocument>();
+
+  async function getDoc(sourceFileId: string): Promise<PDFDocument> {
+    if (docCache.has(sourceFileId)) return docCache.get(sourceFileId)!;
+    const sf = sourceFiles[sourceFileId];
+    const doc = await PDFDocument.load(sf.arrayBuffer.slice(0));
+    docCache.set(sourceFileId, doc);
+    return doc;
+  }
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    for (const pageId of seg.pageIds) {
+      const page = pages[pageId];
+      if (!page) continue;
+      const srcDoc = await getDoc(page.sourceFileId);
+      const [copiedPage] = await mergedDoc.copyPages(srcDoc, [page.sourcePageIndex]);
+      if (page.rotation !== 0) {
+        copiedPage.setRotation(degrees(page.rotation));
+      }
+      mergedDoc.addPage(copiedPage);
+    }
+    onProgress?.(i);
+  }
+
+  return await mergedDoc.save();
 }
 
 /** ブラウザ用: セグメントごとにPDFを分割＋スタンプしてダウンロード */
