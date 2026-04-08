@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { loadPdfDocument, renderPageToCanvas } from '@/lib/pdf-renderer';
+import { formatStampLabel, getEffectiveSymbol } from '@/lib/pdf-stamper';
 import {
   X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut,
   RotateCw, RotateCcw, Scissors,
@@ -8,8 +9,14 @@ import {
 
 const PREVIEW_SCALES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
+const STAMP_COLORS: Record<string, string> = {
+  black: '#000000',
+  red: '#cc0000',
+  blue: '#0000cc',
+};
+
 export function PreviewPanel() {
-  const { previewPageId, pages, sourceFiles, segments, isPreviewOpen } = useAppState();
+  const { previewPageId, pages, sourceFiles, segments, isPreviewOpen, stampEnabled, stampSettings } = useAppState();
   const dispatch = useAppDispatch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scaleIdx, setScaleIdx] = useState(2);
@@ -18,6 +25,15 @@ export function PreviewPanel() {
 
   const allPageIds = segments.flatMap(s => s.pageIds);
   const currentIdx = previewPageId ? allPageIds.indexOf(previewPageId) : -1;
+
+  // このページが所属するセグメント＆ページがセグメントの先頭かどうか
+  const ownerSegment = page ? segments.find(s => s.pageIds.includes(page.id)) : null;
+  const isFirstPageInSegment = page && ownerSegment ? ownerSegment.pageIds[0] === page.id : false;
+
+  // スタンプラベル（先頭ページのみ）
+  const stampLabel = (stampEnabled && isFirstPageInSegment && ownerSegment?.evidenceNumber)
+    ? formatStampLabel(getEffectiveSymbol(stampSettings), ownerSegment.evidenceNumber, stampSettings.format)
+    : null;
 
   useEffect(() => {
     if (!page || !canvasRef.current) return;
@@ -28,10 +44,19 @@ export function PreviewPanel() {
     (async () => {
       const doc = await loadPdfDocument(sf.arrayBuffer, page.sourceFileId);
       if (cancelled || !canvasRef.current) return;
-      await renderPageToCanvas(doc, page.sourcePageIndex, canvasRef.current, PREVIEW_SCALES[scaleIdx], page.rotation);
+      const canvas = canvasRef.current;
+      await renderPageToCanvas(doc, page.sourcePageIndex, canvas, PREVIEW_SCALES[scaleIdx], page.rotation);
+
+      // スタンプオーバーレイ描画
+      if (stampLabel && !cancelled) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          drawStampOverlay(ctx, canvas.width, canvas.height, stampLabel, stampSettings, PREVIEW_SCALES[scaleIdx]);
+        }
+      }
     })();
     return () => { cancelled = true; };
-  }, [page, sourceFiles, scaleIdx]);
+  }, [page, sourceFiles, scaleIdx, stampLabel, stampSettings]);
 
   if (!isPreviewOpen || !page) return null;
 
@@ -61,16 +86,28 @@ export function PreviewPanel() {
     }
   };
 
+  // セグメント情報表示
+  const segInfo = ownerSegment
+    ? `${ownerSegment.name}${stampLabel ? ` [${stampLabel}]` : ''}`
+    : '';
+
   return (
     <div className="flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full" style={{ width: 720 }}>
       {/* Header */}
       <div className="flex items-center justify-between p-2 border-b border-gray-100">
-        <span className="text-sm font-medium text-gray-700">
-          プレビュー {currentIdx + 1} / {allPageIds.length}
-        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
+            プレビュー {currentIdx + 1} / {allPageIds.length}
+          </span>
+          {segInfo && (
+            <span className="text-xs text-gray-400 truncate">
+              — {segInfo}
+            </span>
+          )}
+        </div>
         <button
           onClick={() => dispatch({ type: 'PREVIEW_SET', payload: { pageId: null } })}
-          className="p-1 rounded hover:bg-gray-100"
+          className="p-1 rounded hover:bg-gray-100 flex-shrink-0"
         >
           <X className="w-4 h-4 text-gray-500" />
         </button>
@@ -109,4 +146,51 @@ export function PreviewPanel() {
       </div>
     </div>
   );
+}
+
+/**
+ * Canvas上にスタンプを描画する（プレビュー用）
+ * pdf-stamper.ts の drawStampOnPage と同じ位置計算を再現
+ */
+function drawStampOverlay(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  _canvasHeight: number,
+  label: string,
+  settings: { fontSize: number; fontColor: string; marginTop: number; marginRight: number; showBackground: boolean; showBorder: boolean },
+  scale: number,
+) {
+  const fontSize = settings.fontSize * scale;
+  const marginRight = settings.marginRight * scale;
+  const marginTop = settings.marginTop * scale;
+  const pad = 4 * scale;
+  const color = STAMP_COLORS[settings.fontColor] ?? STAMP_COLORS.black;
+
+  ctx.save();
+  ctx.font = `bold ${fontSize}px "Yu Gothic", "BIZ UDGothic", "Meiryo", "MS Gothic", sans-serif`;
+  const textMetrics = ctx.measureText(label);
+  const textWidth = textMetrics.width;
+
+  const x = canvasWidth - marginRight - textWidth - pad;
+  const y = marginTop + fontSize + pad;
+
+  // 白背景
+  if (settings.showBackground) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.fillRect(x - pad, y - fontSize - pad * 0.5, textWidth + pad * 2, fontSize + pad * 2);
+  }
+
+  // 枠線
+  if (settings.showBorder) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.5 * scale;
+    ctx.strokeRect(x - pad, y - fontSize - pad * 0.5, textWidth + pad * 2, fontSize + pad * 2);
+  }
+
+  // テキスト
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(label, x, y);
+
+  ctx.restore();
 }

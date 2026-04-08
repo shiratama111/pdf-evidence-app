@@ -46,9 +46,9 @@ export const FORMAT_OPTIONS = [
 export const DEFAULT_STAMP_SETTINGS: StampSettings = {
   symbol: '甲',
   customSymbol: '',
-  format: 'mints',
+  format: 'mints-formal',
   fontSize: 14,
-  fontColor: 'black',
+  fontColor: 'red',
   marginTop: 15,
   marginRight: 15,
   showBorder: false,

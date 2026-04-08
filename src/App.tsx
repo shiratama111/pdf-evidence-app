@@ -29,7 +29,7 @@ export default function App() {
             {stampEnabled && <StampSettingsPanel />}
 
             {/* Right preview */}
-            {isPreviewOpen && !stampEnabled && <PreviewPanel />}
+            {isPreviewOpen && <PreviewPanel />}
           </>
         ) : (
           <div className="flex-1 p-8">
