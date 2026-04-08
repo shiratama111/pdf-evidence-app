@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { loadPdfDocument, renderPageToCanvas } from '@/lib/pdf-renderer';
 import { formatStampLabel, getEffectiveSymbol } from '@/lib/pdf-stamper';
@@ -20,6 +20,35 @@ export function PreviewPanel() {
   const dispatch = useAppDispatch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scaleIdx, setScaleIdx] = useState(2);
+  const [panelWidth, setPanelWidth] = useState(720);
+  const isResizing = useRef(false);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    const startX = e.clientX;
+    const startWidth = panelWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const delta = startX - ev.clientX; // 左にドラッグ = 大きくなる
+      const newWidth = Math.max(300, Math.min(1200, startWidth + delta));
+      setPanelWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [panelWidth]);
 
   const page = previewPageId ? pages[previewPageId] : null;
 
@@ -92,7 +121,14 @@ export function PreviewPanel() {
     : '';
 
   return (
-    <div className="flex-shrink-0 border-l border-gray-200 bg-white flex flex-col h-full" style={{ width: 720 }}>
+    <div className="flex-shrink-0 bg-white flex flex-col h-full relative" style={{ width: panelWidth }}>
+      {/* リサイズハンドル（左端） */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 active:bg-blue-500 transition-colors z-10 group"
+        onMouseDown={handleResizeStart}
+      >
+        <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-200 group-hover:bg-blue-400" />
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between p-2 border-b border-gray-100">
         <div className="flex items-center gap-2 min-w-0">

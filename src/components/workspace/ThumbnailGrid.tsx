@@ -2,15 +2,15 @@ import { useState, useCallback } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import { ThumbnailCard } from './ThumbnailCard';
-import { Scissors, RotateCw, RotateCcw, Trash2 } from 'lucide-react';
+import { Scissors, RotateCw, RotateCcw, Trash2, Check } from 'lucide-react';
 
 export function ThumbnailGrid() {
-  const { segments, pages, selectedPageIds } = useAppState();
+  const { segments, pages, selectedPageIds, selectedSegmentIds } = useAppState();
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
-  const handleSelect = (pageId: string, additive: boolean) => {
+  const handlePageSelect = (pageId: string, additive: boolean) => {
     dispatch({ type: 'PAGE_SELECTED', payload: { pageId, additive } });
   };
 
@@ -32,6 +32,10 @@ export function ThumbnailGrid() {
     dispatch({ type: 'PAGES_DELETED', payload: { pageIds: selectedPageIds } });
     dispatch({ type: 'SELECTION_CLEARED' });
   };
+
+  const handleSegmentToggle = useCallback((segmentId: string) => {
+    dispatch({ type: 'SEGMENT_SELECTED', payload: { segmentId, additive: true } });
+  }, [dispatch]);
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -93,6 +97,7 @@ export function ThumbnailGrid() {
 
       {/* Segments */}
       {segments.map((seg) => {
+        const isSegSelected = selectedSegmentIds.includes(seg.id);
         const startIndex = globalIndex;
         const cards = seg.pageIds.map((pageId, i) => {
           const page = pages[pageId];
@@ -106,7 +111,7 @@ export function ThumbnailGrid() {
                 globalIndex={idx}
                 segmentColor={seg.color}
                 isSelected={selectedPageIds.includes(pageId)}
-                onSelect={handleSelect}
+                onSelect={handlePageSelect}
                 onDoubleClick={handleDoubleClick}
               />
               {/* Split button between pages */}
@@ -124,10 +129,24 @@ export function ThumbnailGrid() {
         });
 
         return (
-          <div key={seg.id} className="mb-6">
-            {/* Segment header */}
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: seg.color }} />
+          <div
+            key={seg.id}
+            className={`mb-6 rounded-lg transition-colors ${isSegSelected ? 'bg-blue-50 ring-2 ring-blue-300 p-3 -mx-1' : ''}`}
+          >
+            {/* Segment header — クリックでセグメント選択 */}
+            <div
+              className={`flex items-center gap-2 mb-2 px-1 py-1 rounded-md cursor-pointer select-none transition-colors ${
+                isSegSelected ? 'bg-blue-100' : 'hover:bg-gray-100'
+              }`}
+              onClick={() => handleSegmentToggle(seg.id)}
+            >
+              {/* チェックボックス */}
+              <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                isSegSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-300'
+              }`}>
+                {isSegSelected && <Check className="w-3 h-3 text-white" />}
+              </div>
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
               <span className="text-sm font-medium text-gray-700">{seg.name}</span>
               <span className="text-xs text-gray-400">({seg.pageIds.length}p)</span>
             </div>
