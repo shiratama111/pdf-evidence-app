@@ -28,6 +28,7 @@ export const initialState: AppState = {
   stampSettings: loadStampSettings(),
   exportMode: 'split_pdfs',
   selectedSegmentIds: [],
+  redactionMode: false,
 };
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -238,6 +239,39 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'PREVIEW_TOGGLED':
       return { ...state, isPreviewOpen: !state.isPreviewOpen };
+
+    case 'REDACTION_ADDED': {
+      const page = state.pages[action.payload.pageId];
+      if (!page) return state;
+      return {
+        ...state,
+        pages: {
+          ...state.pages,
+          [action.payload.pageId]: {
+            ...page,
+            redactions: [...page.redactions, action.payload.redaction],
+          },
+        },
+      };
+    }
+
+    case 'REDACTION_REMOVED': {
+      const page = state.pages[action.payload.pageId];
+      if (!page) return state;
+      return {
+        ...state,
+        pages: {
+          ...state.pages,
+          [action.payload.pageId]: {
+            ...page,
+            redactions: page.redactions.filter(redaction => redaction.id !== action.payload.redactionId),
+          },
+        },
+      };
+    }
+
+    case 'REDACTION_MODE_TOGGLED':
+      return { ...state, redactionMode: !state.redactionMode };
 
     // ── Processing ──
     case 'LOADING_STARTED':

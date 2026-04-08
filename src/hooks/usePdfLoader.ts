@@ -56,6 +56,7 @@ export function usePdfLoader() {
             width: info.width,
             height: info.height,
             thumbnailUrl: null,
+            redactions: [],
           });
           segmentPageIds.push(pageId);
         }

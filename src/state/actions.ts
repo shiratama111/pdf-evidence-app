@@ -1,4 +1,4 @@
-import type { PageId, PdfPage, Segment, SourceFile, AiSplitSuggestion, StampSettings, ExportMode, EvidenceNumber } from '@/types/pdf';
+import type { PageId, PdfPage, Segment, SourceFile, AiSplitSuggestion, StampSettings, ExportMode, EvidenceNumber, RedactionArea } from '@/types/pdf';
 
 export type AppAction =
   // File operations
@@ -26,6 +26,9 @@ export type AppAction =
   | { type: 'SELECTION_CLEARED' }
   | { type: 'PREVIEW_SET'; payload: { pageId: PageId | null } }
   | { type: 'PREVIEW_TOGGLED' }
+  | { type: 'REDACTION_ADDED'; payload: { pageId: PageId; redaction: RedactionArea } }
+  | { type: 'REDACTION_REMOVED'; payload: { pageId: PageId; redactionId: string } }
+  | { type: 'REDACTION_MODE_TOGGLED' }
 
   // Processing
   | { type: 'LOADING_STARTED'; payload: { message: string } }

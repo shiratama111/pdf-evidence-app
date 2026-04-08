@@ -4,3 +4,5 @@ release/
 *.exe
 .DS_Store
 Thumbs.db
+codex_batch1a.txt
+codex_output.txt

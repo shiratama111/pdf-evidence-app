@@ -1,6 +1,14 @@
 /** 一意なページ識別子: `${sourceFileId}_p${pageIndex}` */
 export type PageId = string;
 
+export interface RedactionArea {
+  id: string;
+  x: number; // PDF座標（左下原点）
+  y: number;
+  width: number;
+  height: number;
+}
+
 /** アップロードされた元ファイル */
 export interface SourceFile {
   id: string;
@@ -20,6 +28,7 @@ export interface PdfPage {
   width: number;
   height: number;
   thumbnailUrl: string | null;
+  redactions: RedactionArea[];
 }
 
 /** セグメント = 分割後の1ファイルに対応するページグループ */
@@ -90,4 +99,5 @@ export interface AppState {
   stampSettings: StampSettings;
   exportMode: ExportMode;
   selectedSegmentIds: string[];
+  redactionMode: boolean;
 }

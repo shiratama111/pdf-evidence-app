@@ -4,8 +4,9 @@ import { loadPdfDocument, renderPageToCanvas } from '@/lib/pdf-renderer';
 import { formatStampLabel, getEffectiveSymbol } from '@/lib/pdf-stamper';
 import {
   X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut,
-  RotateCw, RotateCcw, Scissors,
+  RotateCw, RotateCcw, Scissors, EyeOff,
 } from 'lucide-react';
+import { RedactionOverlay } from './RedactionOverlay';
 
 const PREVIEW_SCALES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
@@ -16,7 +17,7 @@ const STAMP_COLORS: Record<string, string> = {
 };
 
 export function PreviewPanel() {
-  const { previewPageId, pages, sourceFiles, segments, isPreviewOpen, stampEnabled, stampSettings } = useAppState();
+  const { previewPageId, pages, sourceFiles, segments, isPreviewOpen, stampEnabled, stampSettings, redactionMode } = useAppState();
   const dispatch = useAppDispatch();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scaleIdx, setScaleIdx] = useState(2);
@@ -174,11 +175,36 @@ export function PreviewPanel() {
         <button onClick={handleSplit} className="p-1 rounded hover:bg-gray-100" title="ここで分割">
           <Scissors className="w-4 h-4" />
         </button>
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <button
+          onClick={() => dispatch({ type: 'REDACTION_MODE_TOGGLED' })}
+          className={`p-1 rounded transition-colors ${
+            redactionMode ? 'bg-red-100 text-red-600' : 'hover:bg-gray-100 text-gray-600'
+          }`}
+          title={redactionMode ? '墨消しモード解除' : '墨消しモード'}
+        >
+          <EyeOff className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas + Redaction Overlay */}
       <div className="flex-1 overflow-auto flex items-start justify-center p-2 bg-gray-50">
-        <canvas ref={canvasRef} className="shadow-lg" />
+        <div className="relative inline-block">
+          <canvas ref={canvasRef} className="shadow-lg" />
+          {page && (canvasRef.current?.width ?? 0) > 0 && (
+            <RedactionOverlay
+              pageId={page.id}
+              canvasWidth={canvasRef.current?.width ?? 0}
+              canvasHeight={canvasRef.current?.height ?? 0}
+              pageWidth={page.width}
+              pageHeight={page.height}
+              scale={PREVIEW_SCALES[scaleIdx]}
+              rotation={page.rotation}
+              redactions={page.redactions}
+              isDrawMode={redactionMode}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

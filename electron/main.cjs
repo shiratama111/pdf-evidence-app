@@ -86,7 +86,17 @@ ipcMain.handle('save-pdf-file', async (_event, dirPath, filename, bytes) => {
   console.log('[save-pdf-file] dirPath:', dirPath, 'filename:', filename, 'bytes type:', typeof bytes, 'length:', byteLength);
   try {
     fs.mkdirSync(dirPath, { recursive: true });
-    const outputPath = path.join(dirPath, filename);
+
+    // 同名ファイルが存在する場合、(1), (2)... を付与
+    const ext = path.extname(filename);
+    const base = path.basename(filename, ext);
+    let outputPath = path.join(dirPath, filename);
+    let counter = 1;
+    while (fs.existsSync(outputPath)) {
+      outputPath = path.join(dirPath, `${base}(${counter})${ext}`);
+      counter++;
+    }
+
     const buffer = toNodeBuffer(bytes);
     console.log('[save-pdf-file] writing', buffer.length, 'bytes to', outputPath);
     fs.writeFileSync(outputPath, buffer);

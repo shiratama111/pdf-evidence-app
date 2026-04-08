@@ -12,6 +12,7 @@ import {
   embedJapaneseFont,
   removeMetadata,
 } from './pdf-stamper';
+import { applyPageRedactions } from './pdf-redactor';
 
 /** セグメントごとにPDFを分割して返す（スタンプなし） */
 export async function splitBySegments(
@@ -44,6 +45,15 @@ export async function splitBySegments(
         copiedPage.setRotation(degrees(page.rotation));
       }
       newDoc.addPage(copiedPage);
+
+      // 墨消し適用
+      if (page.redactions.length > 0) {
+        const sf = sourceFiles[page.sourceFileId];
+        await applyPageRedactions(
+          newDoc, newDoc.getPageCount() - 1,
+          page.redactions, sf.arrayBuffer, page.sourcePageIndex, null,
+        );
+      }
     }
 
     const pdfBytes = await newDoc.save();
@@ -97,6 +107,15 @@ export async function splitWithStamp(
           copiedPage.setRotation(degrees(page.rotation));
         }
         newDoc.addPage(copiedPage);
+
+        // 墨消し適用
+        if (page.redactions.length > 0) {
+          const sf = sourceFiles[page.sourceFileId];
+          await applyPageRedactions(
+            newDoc, newDoc.getPageCount() - 1,
+            page.redactions, sf.arrayBuffer, page.sourcePageIndex, fontBytes,
+          );
+        }
       }
 
       // スタンプ描画
