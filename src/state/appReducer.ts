@@ -486,8 +486,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const { groupId } = action.payload;
       const newSegments = state.segments.map(s =>
         s.groupId === groupId
-          ? { ...s, groupId: null, evidenceNumber: s.evidenceNumber ? { main: s.evidenceNumber.main, sub: null } : null }
+          ? { ...s, groupId: null, evidenceNumber: s.evidenceNumber ? { main: s.evidenceNumber.main, sub: null } : null, mergeInExport: undefined }
           : s
+      );
+      return { ...state, segments: newSegments };
+    }
+
+    case 'GROUP_MERGE_TOGGLED': {
+      const { groupId, mergeInExport } = action.payload;
+      const newSegments = state.segments.map(s =>
+        s.groupId === groupId ? { ...s, mergeInExport } : s
       );
       return { ...state, segments: newSegments };
     }

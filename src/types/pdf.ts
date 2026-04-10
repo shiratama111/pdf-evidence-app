@@ -42,6 +42,8 @@ export interface Segment {
   evidenceNumber: EvidenceNumber | null;
   /** グループID: 同じgroupIdを持つセグメントは枝番グループとして一体で移動する */
   groupId: string | null;
+  /** グループ内の枝番を1つのPDFに統合してエクスポートするフラグ（グループ内全セグメントで同じ値を持つ） */
+  mergeInExport?: boolean;
 }
 
 /** 証拠番号 */

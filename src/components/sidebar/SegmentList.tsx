@@ -159,6 +159,10 @@ export function SegmentList() {
     dispatch({ type: 'GROUP_CHILD_REORDERED', payload: { groupId, fromSegmentId, toSegmentId } });
   }, [dispatch]);
 
+  const handleToggleMerge = useCallback((groupId: string, mergeInExport: boolean) => {
+    dispatch({ type: 'GROUP_MERGE_TOGGLED', payload: { groupId, mergeInExport } });
+  }, [dispatch]);
+
   const totalPages = segments.reduce((sum, s) => sum + s.pageIds.length, 0);
   const symbol = getEffectiveSymbol(stampSettings);
 
@@ -232,8 +236,10 @@ export function SegmentList() {
                     mainNum={item.mainNum}
                     childSegments={item.segments.map(s => s.segment)}
                     isCollapsed={isCollapsed}
+                    mergeInExport={item.segments[0].segment.mergeInExport ?? false}
                     onToggleCollapse={() => toggleCollapse(item.groupId)}
                     onUngroup={() => handleUngroup(item.groupId)}
+                    onToggleMerge={handleToggleMerge}
                     onChildReorder={handleChildReorder}
                     onRename={handleRename}
                     onDelete={handleDelete}
@@ -284,8 +290,10 @@ interface GroupFolderProps {
   mainNum: number;
   childSegments: Segment[];
   isCollapsed: boolean;
+  mergeInExport: boolean;
   onToggleCollapse: () => void;
   onUngroup: () => void;
+  onToggleMerge: (groupId: string, mergeInExport: boolean) => void;
   onChildReorder: (groupId: string, fromSegmentId: string, toSegmentId: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
@@ -322,7 +330,8 @@ function SortableGroupFolder(props: GroupFolderProps) {
 }
 
 function GroupFolder({
-  groupId, mainNum, childSegments, isCollapsed, onToggleCollapse, onUngroup,
+  groupId, mainNum, childSegments, isCollapsed, mergeInExport,
+  onToggleCollapse, onUngroup, onToggleMerge,
   onChildReorder, onRename, onDelete,
   stampEnabled, symbol, format,
   selectedSegmentIds, focusedSegmentId, onToggleSelect, onFocus,
@@ -375,6 +384,21 @@ function GroupFolder({
             {childSegments.length}件 / {totalPages}p
           </div>
         </div>
+
+        {/* 統合エクスポートトグル */}
+        <label
+          className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] text-gray-500 rounded hover:bg-amber-50 cursor-pointer select-none"
+          title="ONにすると、この枝番グループを1つのPDFに統合してエクスポートします"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={mergeInExport}
+            onChange={(e) => onToggleMerge(groupId, e.target.checked)}
+            className="w-3 h-3 accent-amber-500"
+          />
+          <span className={mergeInExport ? 'text-amber-700 font-semibold' : ''}>統合</span>
+        </label>
 
         {/* グループ解除ボタン（常時表示） */}
         <button

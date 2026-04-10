@@ -39,42 +39,53 @@ const fontkitWithTtcSupport: RegisteredFontkit = {
 
 type FormatFn = (symbol: string, num: number) => string;
 type BranchFn = (symbol: string, num: number, sub: number) => string;
+type MergedFn = (symbol: string, num: number, subStart: number, subEnd: number) => string;
 
 interface FormatStyle {
   main: FormatFn;
   branch: BranchFn;
+  /** グループ統合用ラベル（例: 甲第1号証の1〜3） */
+  merged: MergedFn;
   /** mints-formal の場合、ファイル名用の形式 */
   filenameMain?: FormatFn;
   filenameBranch?: BranchFn;
+  filenameMerged?: MergedFn;
 }
 
 const FORMAT_STYLES: Record<StampFormat, FormatStyle> = {
   'mints': {
     main: (s, n) => `${s}${String(n).padStart(3, '0')}`,
     branch: (s, n, sub) => `${s}${String(n).padStart(3, '0')}-${sub}`,
+    merged: (s, n, start, end) => `${s}${String(n).padStart(3, '0')}-${start}～${end}`,
   },
   'mints-formal': {
     // スタンプは正式形式、ファイル名はmints形式
     main: (s, n) => `${s}第${n}号証`,
     branch: (s, n, sub) => `${s}第${n}号証の${sub}`,
+    merged: (s, n, start, end) => `${s}第${n}号証の${start}〜${end}`,
     filenameMain: (s, n) => `${s}${String(n).padStart(3, '0')}`,
     filenameBranch: (s, n, sub) => `${s}${String(n).padStart(3, '0')}-${sub}`,
+    filenameMerged: (s, n, start, end) => `${s}${String(n).padStart(3, '0')}-${start}～${end}`,
   },
   'simple': {
     main: (s, n) => `${s}${n}`,
     branch: (s, n, sub) => `${s}${n}の${sub}`,
+    merged: (s, n, start, end) => `${s}${n}の${start}〜${end}`,
   },
   'hyphen': {
     main: (s, n) => `${s}${n}`,
     branch: (s, n, sub) => `${s}${n}-${sub}`,
+    merged: (s, n, start, end) => `${s}${n}-${start}～${end}`,
   },
   'formal': {
     main: (s, n) => `${s}第${n}号証`,
     branch: (s, n, sub) => `${s}第${n}号証の${sub}`,
+    merged: (s, n, start, end) => `${s}第${n}号証の${start}〜${end}`,
   },
   'goushou': {
     main: (s, n) => `${s}${n}号証`,
     branch: (s, n, sub) => `${s}${n}号証の${sub}`,
+    merged: (s, n, start, end) => `${s}${n}号証の${start}〜${end}`,
   },
 };
 
@@ -114,6 +125,38 @@ export function formatFilenameLabel(
   }
   const fn = fmt.filenameMain ?? fmt.main;
   return fn(symbol, evidence.main);
+}
+
+/** 統合枝番のスタンプラベルを生成（例: 甲第1号証の1〜3） */
+export function formatMergedStampLabel(
+  symbol: string,
+  main: number,
+  subStart: number,
+  subEnd: number,
+  format: StampFormat,
+): string {
+  const fmt = FORMAT_STYLES[format];
+  if (subStart === subEnd) {
+    return fmt.branch(symbol, main, subStart);
+  }
+  return fmt.merged(symbol, main, subStart, subEnd);
+}
+
+/** 統合枝番のファイル名用ラベルを生成（例: 甲001-1～3） */
+export function formatMergedFilenameLabel(
+  symbol: string,
+  main: number,
+  subStart: number,
+  subEnd: number,
+  format: StampFormat,
+): string {
+  const fmt = FORMAT_STYLES[format];
+  if (subStart === subEnd) {
+    const fn = fmt.filenameBranch ?? fmt.branch;
+    return fn(symbol, main, subStart);
+  }
+  const fn = fmt.filenameMerged ?? fmt.merged;
+  return fn(symbol, main, subStart, subEnd);
 }
 
 /** 実効的な符号文字列を返す */

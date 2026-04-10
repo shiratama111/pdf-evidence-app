@@ -7,6 +7,7 @@ import type { PageId, PdfPage, Segment, SourceFile, StampSettings } from '@/type
 import {
   formatStampLabel,
   formatFilenameLabel,
+  formatMergedFilenameLabel,
   getEffectiveSymbol,
   drawStampOnPage,
   embedJapaneseFont,
@@ -14,7 +15,9 @@ import {
 } from './pdf-stamper';
 import { applyPageRedactions } from './pdf-redactor';
 
-/** セグメントごとにPDFを分割して返す（スタンプなし） */
+/** セグメントごとにPDFを分割して返す（スタンプなし）
+ *  mergeInExport:true のグループは、先頭セグメントのIDをキーに1つの統合PDFとして返す。
+ */
 export async function splitBySegments(
   sourceFiles: Record<string, SourceFile>,
   pages: Record<PageId, PdfPage>,
@@ -32,8 +35,64 @@ export async function splitBySegments(
     return doc;
   }
 
+  // 統合対象グループの判定（groupId あり、mergeInExport true、セグメント2個以上）
+  const mergeGroupIds = new Set<string>();
+  {
+    const groupCounts = new Map<string, number>();
+    for (const s of segments) {
+      if (s.groupId && s.mergeInExport) {
+        groupCounts.set(s.groupId, (groupCounts.get(s.groupId) ?? 0) + 1);
+      }
+    }
+    for (const [gid, count] of groupCounts) {
+      if (count >= 2) mergeGroupIds.add(gid);
+    }
+  }
+  const processedMergeGroups = new Set<string>();
+
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
+
+    // 統合エクスポート対象グループ
+    if (seg.groupId && mergeGroupIds.has(seg.groupId)) {
+      if (processedMergeGroups.has(seg.groupId)) {
+        onProgress?.(i);
+        continue;
+      }
+      processedMergeGroups.add(seg.groupId);
+
+      const groupSegs = segments.filter(s => s.groupId === seg.groupId);
+      const newDoc = await PDFDocument.create();
+
+      for (const gSeg of groupSegs) {
+        for (const pageId of gSeg.pageIds) {
+          const page = pages[pageId];
+          if (!page) continue;
+          const srcDoc = await getDoc(page.sourceFileId);
+          const [copiedPage] = await newDoc.copyPages(srcDoc, [page.sourcePageIndex]);
+          if (page.rotation !== 0) {
+            copiedPage.setRotation(degrees(page.rotation));
+          }
+          newDoc.addPage(copiedPage);
+
+          if (page.redactions.length > 0) {
+            const sf = sourceFiles[page.sourceFileId];
+            await applyPageRedactions(
+              newDoc, newDoc.getPageCount() - 1,
+              page.redactions, sf.arrayBuffer, page.sourcePageIndex, null,
+            );
+          }
+        }
+      }
+
+      const pdfBytes = await newDoc.save();
+      // 先頭セグメントのIDをキーに1つのエントリだけ入れる（他のgroupセグメントIDはMapに含めない）
+      result.set(seg.id, pdfBytes);
+      onProgress?.(i);
+      continue;
+    }
+
+    // 通常エクスポート（個別セグメント）
     const newDoc = await PDFDocument.create();
 
     for (const pageId of seg.pageIds) {
@@ -93,8 +152,127 @@ export async function splitWithStamp(
     return doc;
   }
 
+  // 統合エクスポート対象のグループを特定
+  // （groupId があり mergeInExport: true、かつグループ内に2つ以上のセグメントがあるもの）
+  const mergeGroupIds = new Set<string>();
+  {
+    const groupCounts = new Map<string, number>();
+    for (const s of segments) {
+      if (s.groupId && s.mergeInExport) {
+        groupCounts.set(s.groupId, (groupCounts.get(s.groupId) ?? 0) + 1);
+      }
+    }
+    for (const [gid, count] of groupCounts) {
+      if (count >= 2) mergeGroupIds.add(gid);
+    }
+  }
+  const processedMergeGroups = new Set<string>();
+
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
+
+    // 統合エクスポート対象グループ
+    if (seg.groupId && mergeGroupIds.has(seg.groupId)) {
+      if (processedMergeGroups.has(seg.groupId)) {
+        onProgress?.(i);
+        continue; // 既に先頭セグメントで統合済み
+      }
+      processedMergeGroups.add(seg.groupId);
+
+      // このグループの全セグメントを収集（入力順を保持）
+      const groupSegs = segments.filter(s => s.groupId === seg.groupId);
+
+      try {
+        const newDoc = await PDFDocument.create();
+
+        // 各セグメントの「統合PDF内での先頭ページインデックス」を記録しながらページをコピー
+        const segFirstPageIndices: number[] = [];
+        for (const gSeg of groupSegs) {
+          const firstIdxBefore = newDoc.getPageCount();
+          let addedAny = false;
+
+          for (const pageId of gSeg.pageIds) {
+            const page = pages[pageId];
+            if (!page) continue;
+            const srcDoc = await getDoc(page.sourceFileId);
+            const [copiedPage] = await newDoc.copyPages(srcDoc, [page.sourcePageIndex]);
+            if (page.rotation !== 0) {
+              copiedPage.setRotation(degrees(page.rotation));
+            }
+            newDoc.addPage(copiedPage);
+            addedAny = true;
+
+            // 墨消し適用
+            if (page.redactions.length > 0) {
+              const sf = sourceFiles[page.sourceFileId];
+              await applyPageRedactions(
+                newDoc, newDoc.getPageCount() - 1,
+                page.redactions, sf.arrayBuffer, page.sourcePageIndex, fontBytes,
+              );
+            }
+          }
+
+          // このセグメントでページが追加されなかった場合は -1 を入れて後でスキップ
+          segFirstPageIndices.push(addedAny ? firstIdxBefore : -1);
+        }
+
+        // 各セグメントの先頭ページに個別スタンプ（「甲第1号証の1」「甲第1号証の2」...）
+        if (fontBytes) {
+          const font = await embedJapaneseFont(newDoc, fontBytes);
+          for (let gIdx = 0; gIdx < groupSegs.length; gIdx++) {
+            const gSeg = groupSegs[gIdx];
+            const firstIdx = segFirstPageIndices[gIdx];
+            if (firstIdx < 0 || !gSeg.evidenceNumber) continue;
+            const label = formatStampLabel(symbol, gSeg.evidenceNumber, stampSettings.format);
+            const segFirstPage = newDoc.getPage(firstIdx);
+            drawStampOnPage(segFirstPage, font, label, stampSettings);
+          }
+        }
+
+        // メタデータ削除
+        if (stampSettings.removeMetadata) {
+          removeMetadata(newDoc);
+        }
+
+        const pdfBytes = await newDoc.save();
+
+        // ファイル名生成（統合ラベル ＋ 先頭セグメントのname）
+        const mainNum = seg.evidenceNumber?.main;
+        const subNums = groupSegs
+          .map(s => s.evidenceNumber?.sub)
+          .filter((n): n is number => n != null);
+        let filename: string;
+        if (mainNum != null && subNums.length >= 2) {
+          const subStart = Math.min(...subNums);
+          const subEnd = Math.max(...subNums);
+          const labelPart = formatMergedFilenameLabel(symbol, mainNum, subStart, subEnd, stampSettings.format);
+          filename = `${labelPart} ${seg.name}.pdf`;
+        } else {
+          filename = `${seg.name}.pdf`;
+        }
+
+        results.push({ segmentId: seg.id, filename, bytes: pdfBytes, success: true });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error('[splitWithStamp] merged group export failed:', {
+          groupId: seg.groupId,
+          segmentCount: groupSegs.length,
+          error: errorMessage,
+        }, err);
+        results.push({
+          segmentId: seg.id,
+          filename: `${seg.name}.pdf`,
+          bytes: new Uint8Array(),
+          success: false,
+          error: errorMessage,
+        });
+      }
+
+      onProgress?.(i);
+      continue;
+    }
+
+    // 通常エクスポート（個別セグメント）
     try {
       const newDoc = await PDFDocument.create();
 
