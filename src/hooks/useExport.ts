@@ -98,12 +98,15 @@ export function useExport() {
           for (const seg of targetSegments) {
             const bytes = result.get(seg.id);
             if (!bytes) continue;
-            const filename = `${sanitizeFilename(seg.name)}.pdf`;
+            // 統合グループの先頭セグメントの場合は groupName を優先、それ以外は seg.name
+            const isMergedGroupHead = !!(seg.groupId && seg.mergeInExport && seg.groupName);
+            const baseName = isMergedGroupHead ? seg.groupName! : seg.name;
+            const filename = `${sanitizeFilename(baseName)}.pdf`;
             if (isElectron) {
               const res = await window.electronAPI!.savePdfFile(outputDir!, filename, bytes);
               if (!res.success) { failures.push(`${filename}: ${res.error ?? '保存に失敗しました。'}`); continue; }
             } else {
-              downloadPdf(bytes, seg.name);
+              downloadPdf(bytes, baseName);
             }
             savedCount++;
           }

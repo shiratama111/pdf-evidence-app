@@ -44,6 +44,8 @@ export interface Segment {
   groupId: string | null;
   /** グループ内の枝番を1つのPDFに統合してエクスポートするフラグ（グループ内全セグメントで同じ値を持つ） */
   mergeInExport?: boolean;
+  /** グループ名（ユーザーが設定した場合、グループ内全セグメントで同じ値を持つ）。未設定時は undefined */
+  groupName?: string;
 }
 
 /** 証拠番号 */

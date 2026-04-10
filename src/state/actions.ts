@@ -54,6 +54,7 @@ export type AppAction =
   | { type: 'EVIDENCE_GROUP_CREATED'; payload: { segmentId: string; afterPageId: PageId } }
   | { type: 'EVIDENCE_GROUP_DISSOLVED'; payload: { segmentId: string } }
   | { type: 'GROUP_MERGE_TOGGLED'; payload: { groupId: string; mergeInExport: boolean } }
+  | { type: 'GROUP_RENAMED'; payload: { groupId: string; name: string } }
 
   // Segment selection & grouping
   | { type: 'SEGMENT_SELECTED'; payload: { segmentId: string; additive: boolean } }

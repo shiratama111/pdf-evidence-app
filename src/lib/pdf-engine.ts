@@ -236,19 +236,20 @@ export async function splitWithStamp(
 
         const pdfBytes = await newDoc.save();
 
-        // ファイル名生成（統合ラベル ＋ 先頭セグメントのname）
+        // ファイル名生成（統合ラベル ＋ グループ名 or 先頭セグメントのname）
         const mainNum = seg.evidenceNumber?.main;
         const subNums = groupSegs
           .map(s => s.evidenceNumber?.sub)
           .filter((n): n is number => n != null);
+        const baseName = seg.groupName ?? seg.name;
         let filename: string;
         if (mainNum != null && subNums.length >= 2) {
           const subStart = Math.min(...subNums);
           const subEnd = Math.max(...subNums);
           const labelPart = formatMergedFilenameLabel(symbol, mainNum, subStart, subEnd, stampSettings.format);
-          filename = `${labelPart} ${seg.name}.pdf`;
+          filename = `${labelPart} ${baseName}.pdf`;
         } else {
-          filename = `${seg.name}.pdf`;
+          filename = `${baseName}.pdf`;
         }
 
         results.push({ segmentId: seg.id, filename, bytes: pdfBytes, success: true });

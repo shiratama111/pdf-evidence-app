@@ -163,6 +163,10 @@ export function SegmentList() {
     dispatch({ type: 'GROUP_MERGE_TOGGLED', payload: { groupId, mergeInExport } });
   }, [dispatch]);
 
+  const handleGroupRename = useCallback((groupId: string, name: string) => {
+    dispatch({ type: 'GROUP_RENAMED', payload: { groupId, name } });
+  }, [dispatch]);
+
   const totalPages = segments.reduce((sum, s) => sum + s.pageIds.length, 0);
   const symbol = getEffectiveSymbol(stampSettings);
 
@@ -237,9 +241,11 @@ export function SegmentList() {
                     childSegments={item.segments.map(s => s.segment)}
                     isCollapsed={isCollapsed}
                     mergeInExport={item.segments[0].segment.mergeInExport ?? false}
+                    groupName={item.segments[0].segment.groupName}
                     onToggleCollapse={() => toggleCollapse(item.groupId)}
                     onUngroup={() => handleUngroup(item.groupId)}
                     onToggleMerge={handleToggleMerge}
+                    onGroupRename={handleGroupRename}
                     onChildReorder={handleChildReorder}
                     onRename={handleRename}
                     onDelete={handleDelete}
@@ -291,9 +297,11 @@ interface GroupFolderProps {
   childSegments: Segment[];
   isCollapsed: boolean;
   mergeInExport: boolean;
+  groupName?: string;
   onToggleCollapse: () => void;
   onUngroup: () => void;
   onToggleMerge: (groupId: string, mergeInExport: boolean) => void;
+  onGroupRename: (groupId: string, name: string) => void;
   onChildReorder: (groupId: string, fromSegmentId: string, toSegmentId: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
@@ -330,8 +338,8 @@ function SortableGroupFolder(props: GroupFolderProps) {
 }
 
 function GroupFolder({
-  groupId, mainNum, childSegments, isCollapsed, mergeInExport,
-  onToggleCollapse, onUngroup, onToggleMerge,
+  groupId, mainNum, childSegments, isCollapsed, mergeInExport, groupName,
+  onToggleCollapse, onUngroup, onToggleMerge, onGroupRename,
   onChildReorder, onRename, onDelete,
   stampEnabled, symbol, format,
   selectedSegmentIds, focusedSegmentId, onToggleSelect, onFocus,
@@ -348,9 +356,29 @@ function GroupFolder({
   }, [groupId, onChildReorder]);
 
   const totalPages = childSegments.reduce((sum, s) => sum + s.pageIds.length, 0);
-  const folderLabel = stampEnabled
+  const defaultLabel = stampEnabled
     ? `${symbol}${mainNum}号証`
     : `グループ (${childSegments.length}件)`;
+  const folderLabel = groupName ?? defaultLabel;
+
+  // グループ名編集モード
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(groupName ?? '');
+
+  const handleStartEdit = () => {
+    setEditValue(groupName ?? '');
+    setIsEditing(true);
+  };
+
+  const handleSubmitEdit = () => {
+    onGroupRename(groupId, editValue);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditValue(groupName ?? '');
+    setIsEditing(false);
+  };
 
   return (
     <div className="mx-1 mb-0.5">
@@ -375,11 +403,31 @@ function GroupFolder({
           : <FolderOpen className="w-4 h-4 text-amber-500 flex-shrink-0" />
         }
 
-        {/* フォルダ名 */}
+        {/* フォルダ名（ダブルクリックで編集） */}
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-gray-700 truncate">
-            {folderLabel}
-          </div>
+          {isEditing ? (
+            <input
+              className="w-full text-xs font-semibold border border-blue-300 rounded px-1 py-0.5 outline-none"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSubmitEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSubmitEdit();
+                if (e.key === 'Escape') handleCancelEdit();
+              }}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              placeholder={defaultLabel}
+            />
+          ) : (
+            <div
+              className="text-xs font-semibold text-gray-700 truncate cursor-text"
+              onDoubleClick={(e) => { e.stopPropagation(); handleStartEdit(); }}
+              title={`${folderLabel}（ダブルクリックで名前変更）`}
+            >
+              {folderLabel}
+            </div>
+          )}
           <div className="text-[10px] text-gray-400">
             {childSegments.length}件 / {totalPages}p
           </div>
