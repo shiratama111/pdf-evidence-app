@@ -88,7 +88,35 @@ export function PreviewPanel() {
     return () => { cancelled = true; };
   }, [page, sourceFiles, scaleIdx, stampLabel, stampSettings]);
 
-  if (!isPreviewOpen || !page) return null;
+  if (!isPreviewOpen) return null;
+
+  if (!page) {
+    return (
+      <div className="flex-shrink-0 bg-white flex flex-col h-full relative" style={{ width: panelWidth }}>
+        {/* リサイズハンドル（左端） */}
+        <div
+          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 active:bg-blue-500 transition-colors z-10 group"
+          onMouseDown={handleResizeStart}
+        >
+          <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-200 group-hover:bg-blue-400" />
+        </div>
+        {/* Header */}
+        <div className="flex items-center justify-between p-2 border-b border-gray-100">
+          <span className="text-sm font-medium text-gray-700">プレビュー</span>
+          <button
+            onClick={() => dispatch({ type: 'PREVIEW_SET', payload: { pageId: null } })}
+            className="p-1 rounded hover:bg-gray-100 flex-shrink-0"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+        {/* Empty state */}
+        <div className="flex-1 flex items-center justify-center bg-gray-50">
+          <p className="text-sm text-gray-400">プレビューするページを選択してください</p>
+        </div>
+      </div>
+    );
+  }
 
   const handlePrev = () => {
     if (currentIdx > 0) {

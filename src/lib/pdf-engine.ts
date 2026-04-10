@@ -170,10 +170,13 @@ export async function mergeAllSegments(
   sourceFiles: Record<string, SourceFile>,
   pages: Record<PageId, PdfPage>,
   segments: Segment[],
+  stampSettings: StampSettings | null,
+  fontBytes: Uint8Array | null,
   onProgress?: (segmentIndex: number) => void,
 ): Promise<Uint8Array> {
   const mergedDoc = await PDFDocument.create();
   const docCache = new Map<string, PDFDocument>();
+  const symbol = stampSettings ? getEffectiveSymbol(stampSettings) : '';
 
   async function getDoc(sourceFileId: string): Promise<PDFDocument> {
     if (docCache.has(sourceFileId)) return docCache.get(sourceFileId)!;
@@ -185,6 +188,8 @@ export async function mergeAllSegments(
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
+    const segFirstPageIndex = mergedDoc.getPageCount();
+
     for (const pageId of seg.pageIds) {
       const page = pages[pageId];
       if (!page) continue;
@@ -194,8 +199,31 @@ export async function mergeAllSegments(
         copiedPage.setRotation(degrees(page.rotation));
       }
       mergedDoc.addPage(copiedPage);
+
+      // 墨消し適用
+      if (page.redactions.length > 0) {
+        const sf = sourceFiles[page.sourceFileId];
+        await applyPageRedactions(
+          mergedDoc, mergedDoc.getPageCount() - 1,
+          page.redactions, sf.arrayBuffer, page.sourcePageIndex, fontBytes,
+        );
+      }
     }
+
+    // スタンプ描画（各セグメントの先頭ページ）
+    if (seg.evidenceNumber && stampSettings && fontBytes) {
+      const font = await embedJapaneseFont(mergedDoc, fontBytes);
+      const label = formatStampLabel(symbol, seg.evidenceNumber, stampSettings.format);
+      const firstPage = mergedDoc.getPage(segFirstPageIndex);
+      drawStampOnPage(firstPage, font, label, stampSettings);
+    }
+
     onProgress?.(i);
+  }
+
+  // メタデータ削除
+  if (stampSettings?.removeMetadata) {
+    removeMetadata(mergedDoc);
   }
 
   return await mergedDoc.save();

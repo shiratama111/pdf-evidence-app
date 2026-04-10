@@ -41,8 +41,19 @@ export function useExport() {
 
       if (type === 'merged') {
         // ── 統合エクスポート ──
+        let fontBytes: Uint8Array | null = null;
+        if (state.stampEnabled && isElectron) {
+          const fontPath = await window.electronAPI!.findJapaneseFont();
+          fontBytes = fontPath ? await window.electronAPI!.readFontFile(fontPath) : null;
+          if (!fontPath || !fontBytes) {
+            throw new Error('日本語フォントの読み込みに失敗しました。');
+          }
+        }
         const mergedBytes = await mergeAllSegments(
-          state.sourceFiles, state.pages, targetSegments, onProgress,
+          state.sourceFiles, state.pages, targetSegments,
+          state.stampEnabled ? state.stampSettings : null,
+          fontBytes,
+          onProgress,
         );
         const filename = '統合ドキュメント.pdf';
 

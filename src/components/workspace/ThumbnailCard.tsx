@@ -55,8 +55,10 @@ export const ThumbnailCard = memo(function ThumbnailCard({
       className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
         isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-transparent hover:border-gray-300'
       }`}
-      onClick={(e) => onSelect(page.id, e.ctrlKey || e.metaKey)}
-      onDoubleClick={() => onDoubleClick(page.id)}
+      onClick={(e) => {
+        onSelect(page.id, e.ctrlKey || e.metaKey);
+        onDoubleClick(page.id);
+      }}
     >
       {/* Color indicator */}
       <div

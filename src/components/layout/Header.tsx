@@ -110,17 +110,15 @@ export function Header() {
       )}
 
       {/* Preview toggle */}
-      {hasFiles && (
-        <button
-          onClick={() => dispatch({ type: 'PREVIEW_TOGGLED' })}
-          className={`p-1.5 rounded-lg border ${
-            state.isPreviewOpen ? 'bg-blue-50 border-blue-200 text-blue-600' : 'border-gray-200 hover:bg-gray-50 text-gray-600'
-          }`}
-          title="プレビュー表示/非表示"
-        >
-          <PanelRight className="w-4 h-4" />
-        </button>
-      )}
+      <button
+        onClick={() => dispatch({ type: 'PREVIEW_TOGGLED' })}
+        className={`p-1.5 rounded-lg border ${
+          state.isPreviewOpen ? 'bg-blue-50 border-blue-200 text-blue-600' : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+        }`}
+        title="プレビュー表示/非表示"
+      >
+        <PanelRight className="w-4 h-4" />
+      </button>
 
       {/* Export */}
       {hasFiles && <ExportDropdown
