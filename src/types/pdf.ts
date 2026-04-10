@@ -104,6 +104,7 @@ export interface AppState {
   exportMode: ExportMode;
   selectedSegmentIds: string[];
   focusedSegmentId: string | null;
+  focusedGroupId: string | null;
   focusVersion: number;
   redactionMode: boolean;
 }

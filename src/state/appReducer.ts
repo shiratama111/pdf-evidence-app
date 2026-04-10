@@ -1,4 +1,4 @@
-import type { AppState } from '@/types/pdf';
+import type { AppState, Segment } from '@/types/pdf';
 import type { AppAction } from './actions';
 import { getSegmentColor, DEFAULT_STAMP_SETTINGS } from '@/constants/defaults';
 
@@ -29,6 +29,7 @@ export const initialState: AppState = {
   exportMode: 'split_pdfs',
   selectedSegmentIds: [],
   focusedSegmentId: null,
+  focusedGroupId: null,
   focusVersion: 0,
   redactionMode: false,
 };
@@ -101,18 +102,40 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       const firstPageIds = seg.pageIds.slice(0, splitIdx + 1);
       const secondPageIds = seg.pageIds.slice(splitIdx + 1);
       const newSeg1 = { ...seg, pageIds: firstPageIds };
-      const newSeg2 = {
+      // 分割後の新セグメントは、元のセグメントがグループ所属なら同じグループに所属させる
+      const newSeg2: Segment = {
         id: crypto.randomUUID(),
         name: `${seg.name}_${segIdx + 2}`,
         pageIds: secondPageIds,
         color: '',
         isCollapsed: false,
-        evidenceNumber: null,
-        groupId: null,
+        // グループ所属なら main を引き継ぎ（sub は後で再採番）、非所属なら null
+        evidenceNumber: seg.groupId && seg.evidenceNumber
+          ? { main: seg.evidenceNumber.main, sub: 0 }
+          : null,
+        groupId: seg.groupId,
+        groupName: seg.groupName,
+        mergeInExport: seg.mergeInExport,
       };
-      const newSegments = [...state.segments];
-      newSegments.splice(segIdx, 1, newSeg1, newSeg2);
-      const colored = newSegments.map((s, i) => ({ ...s, color: getSegmentColor(i) }));
+      const splitSegments = [...state.segments];
+      splitSegments.splice(segIdx, 1, newSeg1, newSeg2);
+
+      // グループ所属なら同グループ内のsubを位置順に再採番
+      let finalSegments = splitSegments;
+      if (seg.groupId && seg.evidenceNumber) {
+        const groupMainNum = seg.evidenceNumber.main;
+        let subCounter = 1;
+        finalSegments = splitSegments.map(s => {
+          if (s.groupId === seg.groupId) {
+            const updated = { ...s, evidenceNumber: { main: groupMainNum, sub: subCounter } };
+            subCounter++;
+            return updated;
+          }
+          return s;
+        });
+      }
+
+      const colored = finalSegments.map((s, i) => ({ ...s, color: getSegmentColor(i) }));
       return { ...state, segments: colored };
     }
 
@@ -455,7 +478,17 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         focusedSegmentId: action.payload.segmentId,
-        focusVersion: state.focusVersion + 1,
+        focusedGroupId: null,
+        // withScroll: false の場合は focusVersion を据え置き、ThumbnailGrid の自動スクロールを抑制
+        focusVersion: action.payload.withScroll === false ? state.focusVersion : state.focusVersion + 1,
+      };
+
+    case 'GROUP_FOCUSED':
+      return {
+        ...state,
+        focusedGroupId: action.payload.groupId,
+        focusedSegmentId: null,
+        focusVersion: action.payload.withScroll === false ? state.focusVersion : state.focusVersion + 1,
       };
 
     case 'SEGMENTS_GROUPED': {

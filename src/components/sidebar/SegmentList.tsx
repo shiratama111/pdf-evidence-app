@@ -52,7 +52,7 @@ function getTreeItemId(item: TreeItem): string {
 // ── メインコンポーネント ──
 
 export function SegmentList() {
-  const { segments, pages, stampEnabled, stampSettings, selectedSegmentIds, focusedSegmentId } = useAppState();
+  const { segments, pages, stampEnabled, stampSettings, selectedSegmentIds, focusedSegmentId, focusedGroupId } = useAppState();
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -167,6 +167,10 @@ export function SegmentList() {
     dispatch({ type: 'GROUP_RENAMED', payload: { groupId, name } });
   }, [dispatch]);
 
+  const handleGroupFocus = useCallback((groupId: string) => {
+    dispatch({ type: 'GROUP_FOCUSED', payload: { groupId } });
+  }, [dispatch]);
+
   const totalPages = segments.reduce((sum, s) => sum + s.pageIds.length, 0);
   const symbol = getEffectiveSymbol(stampSettings);
 
@@ -242,10 +246,12 @@ export function SegmentList() {
                     isCollapsed={isCollapsed}
                     mergeInExport={item.segments[0].segment.mergeInExport ?? false}
                     groupName={item.segments[0].segment.groupName}
+                    isFocused={focusedGroupId === item.groupId}
                     onToggleCollapse={() => toggleCollapse(item.groupId)}
                     onUngroup={() => handleUngroup(item.groupId)}
                     onToggleMerge={handleToggleMerge}
                     onGroupRename={handleGroupRename}
+                    onGroupFocus={handleGroupFocus}
                     onChildReorder={handleChildReorder}
                     onRename={handleRename}
                     onDelete={handleDelete}
@@ -298,10 +304,12 @@ interface GroupFolderProps {
   isCollapsed: boolean;
   mergeInExport: boolean;
   groupName?: string;
+  isFocused: boolean;
   onToggleCollapse: () => void;
   onUngroup: () => void;
   onToggleMerge: (groupId: string, mergeInExport: boolean) => void;
   onGroupRename: (groupId: string, name: string) => void;
+  onGroupFocus: (groupId: string) => void;
   onChildReorder: (groupId: string, fromSegmentId: string, toSegmentId: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
@@ -338,8 +346,8 @@ function SortableGroupFolder(props: GroupFolderProps) {
 }
 
 function GroupFolder({
-  groupId, mainNum, childSegments, isCollapsed, mergeInExport, groupName,
-  onToggleCollapse, onUngroup, onToggleMerge, onGroupRename,
+  groupId, mainNum, childSegments, isCollapsed, mergeInExport, groupName, isFocused,
+  onToggleCollapse, onUngroup, onToggleMerge, onGroupRename, onGroupFocus,
   onChildReorder, onRename, onDelete,
   stampEnabled, symbol, format,
   selectedSegmentIds, focusedSegmentId, onToggleSelect, onFocus,
@@ -382,15 +390,25 @@ function GroupFolder({
 
   return (
     <div className="mx-1 mb-0.5">
-      {/* フォルダヘッダー */}
-      <div className="flex items-center gap-1 px-1.5 py-1.5 bg-white rounded-t border border-gray-200 hover:bg-gray-50 cursor-pointer select-none">
+      {/* フォルダヘッダー（クリックでフォーカス） */}
+      <div
+        className={`flex items-center gap-1 px-1.5 py-1.5 rounded-t border cursor-pointer select-none transition-colors ${
+          isFocused
+            ? 'bg-indigo-50 border-indigo-300'
+            : 'bg-white border-gray-200 hover:bg-gray-50'
+        }`}
+        onClick={() => onGroupFocus(groupId)}
+      >
         {/* ドラッグハンドル */}
         <div className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none" {...dragListeners}>
           <GripVertical className="w-3 h-3 text-gray-300" />
         </div>
 
         {/* 開閉トグル */}
-        <button onClick={onToggleCollapse} className="flex-shrink-0 p-0.5">
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+          className="flex-shrink-0 p-0.5"
+        >
           {isCollapsed
             ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
             : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />

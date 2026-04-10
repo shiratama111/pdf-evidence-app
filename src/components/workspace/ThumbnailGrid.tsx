@@ -5,23 +5,42 @@ import { ThumbnailCard } from './ThumbnailCard';
 import { Scissors, RotateCw, RotateCcw, Trash2, Check } from 'lucide-react';
 
 export function ThumbnailGrid() {
-  const { segments, pages, selectedPageIds, selectedSegmentIds, focusedSegmentId, focusVersion } = useAppState();
+  const { segments, pages, selectedPageIds, selectedSegmentIds, focusedSegmentId, focusedGroupId, focusVersion } = useAppState();
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const lastScrolledFocusVersionRef = useRef<number>(focusVersion);
 
-  // フォーカスされたセグメントの変化時（同じIDでもfocusVersionが増えれば）に該当ブロックへスクロール
+  // フォーカス変化時にスクロール（focusVersion が変わった時のみ実際にスクロール）
+  // - セグメントフォーカス: 該当セグメントへスクロール
+  // - グループフォーカス: グループ内の先頭セグメントへスクロール
+  // - withScroll: false で dispatch された場合は focusVersion が据え置きされ、スクロールしない
   useEffect(() => {
-    if (!focusedSegmentId) return;
-    const el = segmentRefs.current.get(focusedSegmentId);
+    if (focusVersion === lastScrolledFocusVersionRef.current) return;
+    lastScrolledFocusVersionRef.current = focusVersion;
+
+    let targetSegmentId: string | undefined;
+    if (focusedSegmentId) {
+      targetSegmentId = focusedSegmentId;
+    } else if (focusedGroupId) {
+      const firstInGroup = segments.find(s => s.groupId === focusedGroupId);
+      targetSegmentId = firstInGroup?.id;
+    }
+    if (!targetSegmentId) return;
+    const el = segmentRefs.current.get(targetSegmentId);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [focusedSegmentId, focusVersion]);
+  }, [focusedSegmentId, focusedGroupId, focusVersion, segments]);
 
   const handlePageSelect = (pageId: string, additive: boolean) => {
     dispatch({ type: 'PAGE_SELECTED', payload: { pageId, additive } });
+    // ページが属するセグメントをフォーカス（左サイドバーと同期、ただしスクロールはしない）
+    const ownerSeg = segments.find(s => s.pageIds.includes(pageId));
+    if (ownerSeg) {
+      dispatch({ type: 'SEGMENT_FOCUSED', payload: { segmentId: ownerSeg.id, withScroll: false } });
+    }
   };
 
   const handleDoubleClick = (pageId: string) => {
@@ -108,7 +127,7 @@ export function ThumbnailGrid() {
       {/* Segments */}
       {segments.map((seg) => {
         const isSegSelected = selectedSegmentIds.includes(seg.id);
-        const isSegFocused = focusedSegmentId === seg.id;
+        const isSegFocused = focusedSegmentId === seg.id || (!!focusedGroupId && seg.groupId === focusedGroupId);
         const startIndex = globalIndex;
         const cards = seg.pageIds.map((pageId, i) => {
           const page = pages[pageId];
