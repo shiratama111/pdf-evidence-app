@@ -37,8 +37,10 @@ function createWindow() {
   console.log('Loading:', indexPath, 'exists:', fs.existsSync(indexPath));
   win.loadFile(indexPath);
 
-  // Open DevTools for debugging
-  win.webContents.openDevTools();
+  // Open DevTools only in development (not when packaged)
+  if (!app.isPackaged) {
+    win.webContents.openDevTools();
+  }
 
   // Remove default menu bar
   win.setMenuBarVisibility(false);
