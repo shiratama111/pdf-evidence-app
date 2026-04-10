@@ -145,7 +145,14 @@ export function SegmentList() {
 
   const handleFocusSegment = useCallback((segmentId: string) => {
     dispatch({ type: 'SEGMENT_FOCUSED', payload: { segmentId } });
-  }, [dispatch]);
+    // セグメントの先頭ページを選択＋プレビュー表示
+    const seg = segments.find(s => s.id === segmentId);
+    const firstPageId = seg?.pageIds[0];
+    if (firstPageId) {
+      dispatch({ type: 'PAGE_SELECTED', payload: { pageId: firstPageId, additive: false } });
+      dispatch({ type: 'PREVIEW_SET', payload: { pageId: firstPageId } });
+    }
+  }, [dispatch, segments]);
 
   const handleGroup = useCallback(() => {
     dispatch({ type: 'SEGMENTS_GROUPED' });
@@ -169,7 +176,14 @@ export function SegmentList() {
 
   const handleGroupFocus = useCallback((groupId: string) => {
     dispatch({ type: 'GROUP_FOCUSED', payload: { groupId } });
-  }, [dispatch]);
+    // グループ内の先頭セグメントの先頭ページを選択＋プレビュー表示
+    const firstSeg = segments.find(s => s.groupId === groupId);
+    const firstPageId = firstSeg?.pageIds[0];
+    if (firstPageId) {
+      dispatch({ type: 'PAGE_SELECTED', payload: { pageId: firstPageId, additive: false } });
+      dispatch({ type: 'PREVIEW_SET', payload: { pageId: firstPageId } });
+    }
+  }, [dispatch, segments]);
 
   const totalPages = segments.reduce((sum, s) => sum + s.pageIds.length, 0);
   const symbol = getEffectiveSymbol(stampSettings);
