@@ -28,6 +28,8 @@ export const initialState: AppState = {
   stampSettings: loadStampSettings(),
   exportMode: 'split_pdfs',
   selectedSegmentIds: [],
+  focusedSegmentId: null,
+  focusVersion: 0,
   redactionMode: false,
 };
 
@@ -448,6 +450,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case 'SEGMENT_SELECTION_CLEARED':
       return { ...state, selectedSegmentIds: [] };
+
+    case 'SEGMENT_FOCUSED':
+      return {
+        ...state,
+        focusedSegmentId: action.payload.segmentId,
+        focusVersion: state.focusVersion + 1,
+      };
 
     case 'SEGMENTS_GROUPED': {
       if (state.selectedSegmentIds.length < 2) return state;

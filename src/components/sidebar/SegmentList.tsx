@@ -52,7 +52,7 @@ function getTreeItemId(item: TreeItem): string {
 // ── メインコンポーネント ──
 
 export function SegmentList() {
-  const { segments, pages, stampEnabled, stampSettings, selectedSegmentIds } = useAppState();
+  const { segments, pages, stampEnabled, stampSettings, selectedSegmentIds, focusedSegmentId } = useAppState();
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -141,6 +141,10 @@ export function SegmentList() {
 
   const handleToggleSelect = useCallback((segmentId: string) => {
     dispatch({ type: 'SEGMENT_SELECTED', payload: { segmentId, additive: true } });
+  }, [dispatch]);
+
+  const handleFocusSegment = useCallback((segmentId: string) => {
+    dispatch({ type: 'SEGMENT_FOCUSED', payload: { segmentId } });
   }, [dispatch]);
 
   const handleGroup = useCallback(() => {
@@ -238,7 +242,9 @@ export function SegmentList() {
                     symbol={symbol}
                     format={stampSettings.format}
                     selectedSegmentIds={selectedSegmentIds}
+                    focusedSegmentId={focusedSegmentId}
                     onToggleSelect={handleToggleSelect}
+                    onFocus={handleFocusSegment}
                     pages={pages}
                     allSegments={segments}
                   />
@@ -257,7 +263,9 @@ export function SegmentList() {
                   symbol={symbol}
                   format={stampSettings.format}
                   isSelected={selectedSegmentIds.includes(item.segment.id)}
+                  isFocused={focusedSegmentId === item.segment.id}
                   onToggleSelect={handleToggleSelect}
+                  onFocus={handleFocusSegment}
                   isInGroup={false}
                 />
               );
@@ -286,7 +294,9 @@ interface GroupFolderProps {
   symbol: string;
   format: StampFormat;
   selectedSegmentIds: string[];
+  focusedSegmentId: string | null;
   onToggleSelect: (id: string) => void;
+  onFocus: (id: string) => void;
   pages: Record<string, { thumbnailUrl: string | null }>;
   allSegments: Segment[];
   dragListeners?: Record<string, unknown>;
@@ -315,7 +325,7 @@ function GroupFolder({
   groupId, mainNum, childSegments, isCollapsed, onToggleCollapse, onUngroup,
   onChildReorder, onRename, onDelete,
   stampEnabled, symbol, format,
-  selectedSegmentIds, onToggleSelect,
+  selectedSegmentIds, focusedSegmentId, onToggleSelect, onFocus,
   dragListeners,
 }: GroupFolderProps) {
   const sensors = useSensors(
@@ -393,7 +403,9 @@ function GroupFolder({
                   symbol={symbol}
                   format={format}
                   isSelected={selectedSegmentIds.includes(seg.id)}
+                  isFocused={focusedSegmentId === seg.id}
                   onToggleSelect={onToggleSelect}
+                  onFocus={onFocus}
                 />
               ))}
             </SortableContext>
@@ -417,7 +429,9 @@ interface SegmentItemProps {
   symbol: string;
   format: StampFormat;
   isSelected: boolean;
+  isFocused: boolean;
   onToggleSelect: (id: string) => void;
+  onFocus: (id: string) => void;
   isInGroup: boolean;
 }
 
@@ -443,7 +457,7 @@ function SortableSegmentItem(props: SegmentItemProps) {
 
 function SegmentRow({
   segment, isLast, pageCount, onRename, onDelete, onMergeNext,
-  stampEnabled, symbol, format, isSelected, onToggleSelect,
+  stampEnabled, symbol, format, isSelected, isFocused, onToggleSelect, onFocus,
   isInGroup, dragListeners,
 }: SegmentItemProps & { dragListeners?: Record<string, unknown> }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -464,9 +478,16 @@ function SegmentRow({
     : null;
 
   return (
-    <div className={`group mx-1 mb-0.5 rounded border transition-colors ${
-      isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 hover:border-gray-300'
-    } ${isInGroup ? 'mx-0 border-x-0 rounded-none mb-0' : ''}`}>
+    <div
+      className={`group mx-1 mb-0.5 rounded border transition-colors cursor-pointer ${
+        isSelected
+          ? 'bg-blue-50 border-blue-200'
+          : isFocused
+            ? 'bg-gray-100 border-gray-300'
+            : 'bg-white border-gray-200 hover:border-gray-300'
+      } ${isInGroup ? 'mx-0 border-x-0 rounded-none mb-0' : ''}`}
+      onClick={() => onFocus(segment.id)}
+    >
       <div className="flex items-center gap-1.5 px-2 py-1.5">
         {/* Checkbox */}
         <input
@@ -508,7 +529,7 @@ function SegmentRow({
           ) : (
             <div
               className="text-xs text-gray-700 truncate cursor-text"
-              onDoubleClick={() => { setEditValue(segment.name); setIsEditing(true); }}
+              onDoubleClick={(e) => { e.stopPropagation(); setEditValue(segment.name); setIsEditing(true); }}
               title={segment.name}
             >
               {segment.name}
@@ -521,7 +542,7 @@ function SegmentRow({
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           {!isLast && (
             <button
-              onClick={() => onMergeNext(segment.id)}
+              onClick={(e) => { e.stopPropagation(); onMergeNext(segment.id); }}
               className="p-0.5 rounded hover:bg-gray-200 text-gray-400"
               title="次と結合"
             >
@@ -529,7 +550,7 @@ function SegmentRow({
             </button>
           )}
           <button
-            onClick={() => onDelete(segment.id)}
+            onClick={(e) => { e.stopPropagation(); onDelete(segment.id); }}
             className="p-0.5 rounded hover:bg-red-50 text-red-400"
             title="削除"
           >
@@ -553,7 +574,9 @@ interface ChildSegmentItemProps {
   symbol: string;
   format: StampFormat;
   isSelected: boolean;
+  isFocused: boolean;
   onToggleSelect: (id: string) => void;
+  onFocus: (id: string) => void;
 }
 
 function SortableChildSegmentItem(props: ChildSegmentItemProps) {
@@ -576,7 +599,7 @@ function SortableChildSegmentItem(props: ChildSegmentItemProps) {
 
 function ChildSegmentItem({
   segment, isLast, pageCount, onRename, onDelete,
-  stampEnabled, symbol, format, isSelected, onToggleSelect,
+  stampEnabled, symbol, format, isSelected, isFocused, onToggleSelect, onFocus,
   dragListeners,
 }: ChildSegmentItemProps & { dragListeners?: Record<string, unknown> }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -597,9 +620,12 @@ function ChildSegmentItem({
     : null;
 
   return (
-    <div className={`flex items-center gap-1.5 px-2 py-1.5 transition-colors ${
-      isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
-    } ${!isLast ? 'border-b border-gray-100' : ''}`}>
+    <div
+      className={`flex items-center gap-1.5 px-2 py-1.5 transition-colors cursor-pointer ${
+        isSelected ? 'bg-blue-50' : isFocused ? 'bg-gray-100' : 'hover:bg-gray-50'
+      } ${!isLast ? 'border-b border-gray-100' : ''}`}
+      onClick={() => onFocus(segment.id)}
+    >
       {/* Checkbox */}
       <input
         type="checkbox"
@@ -638,7 +664,7 @@ function ChildSegmentItem({
         ) : (
           <div
             className="text-[11px] text-gray-600 truncate cursor-text"
-            onDoubleClick={() => { setEditValue(segment.name); setIsEditing(true); }}
+            onDoubleClick={(e) => { e.stopPropagation(); setEditValue(segment.name); setIsEditing(true); }}
             title={segment.name}
           >
             {segment.name}
@@ -651,7 +677,7 @@ function ChildSegmentItem({
 
       {/* Delete */}
       <button
-        onClick={() => onDelete(segment.id)}
+        onClick={(e) => { e.stopPropagation(); onDelete(segment.id); }}
         className="p-0.5 rounded hover:bg-red-50 text-red-300 opacity-0 group-hover:opacity-100"
         title="削除"
       >

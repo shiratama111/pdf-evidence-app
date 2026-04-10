@@ -57,6 +57,7 @@ export type AppAction =
   // Segment selection & grouping
   | { type: 'SEGMENT_SELECTED'; payload: { segmentId: string; additive: boolean } }
   | { type: 'SEGMENT_SELECTION_CLEARED' }
+  | { type: 'SEGMENT_FOCUSED'; payload: { segmentId: string } }
   | { type: 'SEGMENTS_GROUPED' }
   | { type: 'SEGMENTS_UNGROUPED'; payload: { groupId: string } }
   | { type: 'GROUP_CHILD_REORDERED'; payload: { groupId: string; fromSegmentId: string; toSegmentId: string } }

@@ -99,5 +99,7 @@ export interface AppState {
   stampSettings: StampSettings;
   exportMode: ExportMode;
   selectedSegmentIds: string[];
+  focusedSegmentId: string | null;
+  focusVersion: number;
   redactionMode: boolean;
 }

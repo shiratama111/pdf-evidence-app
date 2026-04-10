@@ -1,14 +1,24 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import { ThumbnailCard } from './ThumbnailCard';
 import { Scissors, RotateCw, RotateCcw, Trash2, Check } from 'lucide-react';
 
 export function ThumbnailGrid() {
-  const { segments, pages, selectedPageIds, selectedSegmentIds } = useAppState();
+  const { segments, pages, selectedPageIds, selectedSegmentIds, focusedSegmentId, focusVersion } = useAppState();
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // フォーカスされたセグメントの変化時（同じIDでもfocusVersionが増えれば）に該当ブロックへスクロール
+  useEffect(() => {
+    if (!focusedSegmentId) return;
+    const el = segmentRefs.current.get(focusedSegmentId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [focusedSegmentId, focusVersion]);
 
   const handlePageSelect = (pageId: string, additive: boolean) => {
     dispatch({ type: 'PAGE_SELECTED', payload: { pageId, additive } });
@@ -98,6 +108,7 @@ export function ThumbnailGrid() {
       {/* Segments */}
       {segments.map((seg) => {
         const isSegSelected = selectedSegmentIds.includes(seg.id);
+        const isSegFocused = focusedSegmentId === seg.id;
         const startIndex = globalIndex;
         const cards = seg.pageIds.map((pageId, i) => {
           const page = pages[pageId];
@@ -131,12 +142,22 @@ export function ThumbnailGrid() {
         return (
           <div
             key={seg.id}
-            className={`mb-6 rounded-lg transition-colors ${isSegSelected ? 'bg-blue-50 ring-2 ring-blue-300 p-3 -mx-1' : ''}`}
+            ref={(el) => {
+              if (el) segmentRefs.current.set(seg.id, el);
+              else segmentRefs.current.delete(seg.id);
+            }}
+            className={`mb-6 rounded-lg transition-all ${
+              isSegSelected
+                ? 'bg-blue-50 ring-2 ring-blue-300 p-3 -mx-1'
+                : isSegFocused
+                  ? 'ring-2 ring-indigo-300 bg-indigo-50/40 p-3 -mx-1'
+                  : ''
+            }`}
           >
             {/* Segment header — クリックでセグメント選択 */}
             <div
               className={`flex items-center gap-2 mb-2 px-1 py-1 rounded-md cursor-pointer select-none transition-colors ${
-                isSegSelected ? 'bg-blue-100' : 'hover:bg-gray-100'
+                isSegSelected ? 'bg-blue-100' : isSegFocused ? 'bg-indigo-100/60' : 'hover:bg-gray-100'
               }`}
               onClick={() => handleSegmentToggle(seg.id)}
             >
