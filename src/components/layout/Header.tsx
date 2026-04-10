@@ -6,7 +6,9 @@ import { useGemini } from '@/hooks/useGemini';
 import {
   FilePlus, Download, RotateCcw, PanelRight,
   Sparkles, Loader2, Stamp, Undo2, Redo2,
+  FolderOpen, Check, AlertTriangle,
 } from 'lucide-react';
+import { LibraryModal } from '@/components/library/LibraryModal';
 
 export function Header() {
   const state = useAppState();
@@ -16,6 +18,7 @@ export function Header() {
   const { exportIndividual, exportMerged, exportSelected, isExporting } = useExport();
   const { analyze, isProcessing: isAiProcessing } = useGemini();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
   const hasFiles = state.segments.length > 0;
 
@@ -42,6 +45,16 @@ export function Header() {
         multiple
         onChange={(e) => { if (e.target.files) loadFiles(e.target.files); e.target.value = ''; }}
       />
+
+      {/* Library */}
+      <button
+        onClick={() => setIsLibraryOpen(true)}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700"
+        title="ライブラリ・アーカイブ"
+      >
+        <FolderOpen className="w-4 h-4" />
+        ライブラリ
+      </button>
 
       {/* Reset */}
       {hasFiles && (
@@ -77,6 +90,9 @@ export function Header() {
       )}
 
       <div className="flex-1" />
+
+      {/* Save status indicator */}
+      <SaveStatusIndicator status={state.saveStatus} lastSavedAt={state.lastSavedAt} />
 
       {/* Stamp toggle */}
       {hasFiles && (
@@ -128,7 +144,48 @@ export function Header() {
         exportSelected={exportSelected}
         selectedCount={state.selectedSegmentIds.length}
       />}
+
+      {/* Library Modal */}
+      <LibraryModal isOpen={isLibraryOpen} onClose={() => setIsLibraryOpen(false)} />
     </header>
+  );
+}
+
+function SaveStatusIndicator({ status, lastSavedAt }: { status: 'idle' | 'saving' | 'saved' | 'failed'; lastSavedAt: string | null }) {
+  if (status === 'idle') return null;
+
+  if (status === 'saving') {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500" title="自動保存中">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span>保存中…</span>
+      </div>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 text-xs text-red-600" title="自動保存に失敗しました">
+        <AlertTriangle className="w-3 h-3" />
+        <span>保存失敗</span>
+      </div>
+    );
+  }
+
+  // saved
+  let timeStr = '';
+  if (lastSavedAt) {
+    try {
+      const d = new Date(lastSavedAt);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      timeStr = ` ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch { /* ignore */ }
+  }
+  return (
+    <div className="flex items-center gap-1 px-2 py-1 text-xs text-green-600" title="自動保存済み">
+      <Check className="w-3 h-3" />
+      <span>保存済{timeStr}</span>
+    </div>
   );
 }
 

@@ -17,6 +17,15 @@ function toTransferablePdfBytes(bytes) {
   return Uint8Array.from(bytes).buffer;
 }
 
+function toTransferableBinaries(binaries) {
+  // Record<string, Uint8Array> → Record<string, ArrayBuffer>
+  const out = {};
+  for (const [k, v] of Object.entries(binaries)) {
+    out[k] = toTransferablePdfBytes(v);
+  }
+  return out;
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   /** 出力先フォルダ選択ダイアログ */
   selectOutputDir: () => ipcRenderer.invoke('select-output-dir'),
@@ -36,4 +45,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** デフォルト出力先パスを取得 */
   getDefaultOutput: () => ipcRenderer.invoke('get-default-output'),
+
+  /** ライブラリ管理 API（自動保存先） */
+  library: {
+    list: () => ipcRenderer.invoke('library:list'),
+    read: (id) => ipcRenderer.invoke('library:read', id),
+    save: (id, sessionJson, binaries, thumbnail, meta) =>
+      ipcRenderer.invoke(
+        'library:save',
+        id,
+        sessionJson,
+        toTransferableBinaries(binaries || {}),
+        thumbnail ? toTransferablePdfBytes(thumbnail) : null,
+        meta || null,
+      ),
+    delete: (id) => ipcRenderer.invoke('library:delete', id),
+    rename: (id, name) => ipcRenderer.invoke('library:rename', id, name),
+    pin: (id, pinned) => ipcRenderer.invoke('library:pin', id, pinned),
+    thumbnail: (id) => ipcRenderer.invoke('library:thumbnail', id),
+  },
+
+  /** アーカイブ書き出し / 読み込み API（.pdfevd ZIP） */
+  archive: {
+    exportDialog: (defaultName) => ipcRenderer.invoke('archive:export-dialog', defaultName),
+    write: (filePath, bytes) => ipcRenderer.invoke('archive:write', filePath, toTransferablePdfBytes(bytes)),
+    openDialog: () => ipcRenderer.invoke('archive:open-dialog'),
+    read: (filePath) => ipcRenderer.invoke('archive:read', filePath),
+  },
 });

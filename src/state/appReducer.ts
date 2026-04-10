@@ -32,6 +32,9 @@ export const initialState: AppState = {
   focusedGroupId: null,
   focusVersion: 0,
   redactionMode: false,
+  currentSessionId: null,
+  lastSavedAt: null,
+  saveStatus: 'idle',
 };
 
 export function appReducer(state: AppState, action: AppAction): AppState {
@@ -579,6 +582,41 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     // ── Reset ──
     case 'STATE_RESET':
       return { ...initialState, geminiApiKey: state.geminiApiKey, stampSettings: state.stampSettings };
+
+    // ── Session save / restore ──
+    case 'SESSION_ID_ASSIGNED':
+      return { ...state, currentSessionId: action.payload.id };
+
+    case 'SESSION_SAVE_STARTED':
+      return { ...state, saveStatus: 'saving' };
+
+    case 'SESSION_SAVE_FINISHED':
+      return { ...state, saveStatus: 'saved', lastSavedAt: action.payload.savedAt };
+
+    case 'SESSION_SAVE_FAILED':
+      return { ...state, saveStatus: 'failed' };
+
+    case 'SESSION_RESTORED':
+      // 復元時は initialState ベースに、復元値で上書き。geminiApiKey と stampSettings は維持しない
+      // （セッション側の stampSettings を優先）
+      return {
+        ...initialState,
+        geminiApiKey: state.geminiApiKey,
+        ...action.payload.state,
+        currentSessionId: action.payload.sessionId,
+        lastSavedAt: new Date().toISOString(),
+        saveStatus: 'saved',
+      };
+
+    case 'SESSION_NEW_STARTED':
+      return {
+        ...initialState,
+        geminiApiKey: state.geminiApiKey,
+        stampSettings: state.stampSettings,
+        currentSessionId: null,
+        lastSavedAt: null,
+        saveStatus: 'idle',
+      };
 
     default:
       return state;

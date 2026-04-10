@@ -107,4 +107,10 @@ export interface AppState {
   focusedGroupId: string | null;
   focusVersion: number;
   redactionMode: boolean;
+  /** 自動保存中のセッションID。null の場合は未保存（編集が始まったら付与される） */
+  currentSessionId: string | null;
+  /** 最終自動保存日時（ISO8601）。null の場合は未保存 */
+  lastSavedAt: string | null;
+  /** 自動保存ステータス（ヘッダーインジケータ表示用） */
+  saveStatus: 'idle' | 'saving' | 'saved' | 'failed';
 }

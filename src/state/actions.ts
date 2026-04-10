@@ -1,4 +1,4 @@
-import type { PageId, PdfPage, Segment, SourceFile, AiSplitSuggestion, StampSettings, ExportMode, EvidenceNumber, RedactionArea } from '@/types/pdf';
+import type { PageId, PdfPage, Segment, SourceFile, AiSplitSuggestion, StampSettings, ExportMode, EvidenceNumber, RedactionArea, AppState } from '@/types/pdf';
 
 export type AppAction =
   // File operations
@@ -66,4 +66,12 @@ export type AppAction =
   | { type: 'GROUP_CHILD_REORDERED'; payload: { groupId: string; fromSegmentId: string; toSegmentId: string } }
 
   // Reset
-  | { type: 'STATE_RESET' };
+  | { type: 'STATE_RESET' }
+
+  // Session save / restore (auto save / library)
+  | { type: 'SESSION_ID_ASSIGNED'; payload: { id: string } }
+  | { type: 'SESSION_SAVE_STARTED' }
+  | { type: 'SESSION_SAVE_FINISHED'; payload: { savedAt: string } }
+  | { type: 'SESSION_SAVE_FAILED' }
+  | { type: 'SESSION_RESTORED'; payload: { state: Partial<AppState>; sessionId: string } }
+  | { type: 'SESSION_NEW_STARTED' };

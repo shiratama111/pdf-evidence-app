@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useCallback, useEffect, useRef, 
 import type { AppState } from '@/types/pdf';
 import type { AppAction } from './actions';
 import { appReducer, initialState } from './appReducer';
+import { useAutoSave } from '@/hooks/useAutoSave';
 
 // Undo/Redo 対象外のアクション（UI状態やプログレスなど）
 const NON_UNDOABLE_ACTIONS = new Set([
@@ -22,6 +23,10 @@ const NON_UNDOABLE_ACTIONS = new Set([
   'SEGMENT_SELECTION_CLEARED',
   'SEGMENT_FOCUSED',
   'GROUP_FOCUSED',
+  'SESSION_ID_ASSIGNED',
+  'SESSION_SAVE_STARTED',
+  'SESSION_SAVE_FINISHED',
+  'SESSION_SAVE_FAILED',
 ]);
 
 const MAX_HISTORY = 50;
@@ -61,6 +66,11 @@ function undoableReducer(state: UndoableState, action: UndoableAction): Undoable
   // 通常のアクション
   const newCurrent = appReducer(state.current, action);
   if (newCurrent === state.current) return state;
+
+  // セッション復元 / 新規セッション開始は undo履歴を完全リセット
+  if (action.type === 'SESSION_RESTORED' || action.type === 'SESSION_NEW_STARTED') {
+    return { current: newCurrent, past: [], future: [] };
+  }
 
   // Undo対象外のアクションは履歴に追加しない
   if (NON_UNDOABLE_ACTIONS.has(action.type)) {
@@ -141,11 +151,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <StateContext.Provider value={state.current}>
       <DispatchContext.Provider value={appDispatch}>
         <UndoRedoContext.Provider value={undoRedoValue}>
+          <AutoSaveBridge />
           {children}
         </UndoRedoContext.Provider>
       </DispatchContext.Provider>
     </StateContext.Provider>
   );
+}
+
+/** AppProvider 内で useAppState/useAppDispatch を使うための内部コンポーネント */
+function AutoSaveBridge() {
+  useAutoSave();
+  return null;
 }
 
 export function useAppState(): AppState {
