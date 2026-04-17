@@ -72,4 +72,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openDialog: () => ipcRenderer.invoke('archive:open-dialog'),
     read: (filePath) => ipcRenderer.invoke('archive:read', filePath),
   },
+
+  /** 自動アップデート API */
+  update: {
+    check: () => ipcRenderer.invoke('update:check'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onChecking: (cb) => {
+      const fn = (_e, data) => cb(data);
+      ipcRenderer.on('update:checking', fn);
+      return () => ipcRenderer.removeListener('update:checking', fn);
+    },
+    onAvailable: (cb) => {
+      const fn = (_e, data) => cb(data);
+      ipcRenderer.on('update:available', fn);
+      return () => ipcRenderer.removeListener('update:available', fn);
+    },
+    onNotAvailable: (cb) => {
+      const fn = (_e, data) => cb(data);
+      ipcRenderer.on('update:not-available', fn);
+      return () => ipcRenderer.removeListener('update:not-available', fn);
+    },
+    onProgress: (cb) => {
+      const fn = (_e, data) => cb(data);
+      ipcRenderer.on('update:progress', fn);
+      return () => ipcRenderer.removeListener('update:progress', fn);
+    },
+    onDownloaded: (cb) => {
+      const fn = (_e, data) => cb(data);
+      ipcRenderer.on('update:downloaded', fn);
+      return () => ipcRenderer.removeListener('update:downloaded', fn);
+    },
+    onError: (cb) => {
+      const fn = (_e, data) => cb(data);
+      ipcRenderer.on('update:error', fn);
+      return () => ipcRenderer.removeListener('update:error', fn);
+    },
+  },
+
+  /** アプリバージョン取得（表示用） */
+  getVersion: () => ipcRenderer.invoke('app:version'),
 });

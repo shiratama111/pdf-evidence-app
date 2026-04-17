@@ -69,7 +69,7 @@ export function deserializeAppState(
       throw new SessionFormatError(`バイナリが欠損しています: ${sf.name} (${sf.id})`);
     }
     // JSZip の内部バッファ干渉を避けるため、独立した ArrayBuffer を作成
-    const independentBuffer = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+    const independentBuffer = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
     sourceFiles.push({
       ...sf,
       arrayBuffer: independentBuffer,

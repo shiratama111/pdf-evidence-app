@@ -1,6 +1,73 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
+
+// ---------------------------------------------------------------------------
+// 自動アップデート設定
+// ---------------------------------------------------------------------------
+// サイレント自動DL + DL完了時にレンダラーへ通知（Chrome型）
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.logger = {
+  info: (...a) => console.log('[updater]', ...a),
+  warn: (...a) => console.warn('[updater]', ...a),
+  error: (...a) => console.error('[updater]', ...a),
+  debug: () => {},
+};
+
+function setupAutoUpdater(win) {
+  const send = (channel, payload) => {
+    if (!win || win.isDestroyed()) return;
+    try {
+      win.webContents.send(channel, payload);
+    } catch (err) {
+      console.warn('[updater] send failed:', channel, err.message);
+    }
+  };
+
+  autoUpdater.on('checking-for-update', () => {
+    send('update:checking', {});
+  });
+  autoUpdater.on('update-available', (info) => {
+    send('update:available', {
+      version: info?.version,
+      releaseNotes: info?.releaseNotes ?? null,
+      releaseDate: info?.releaseDate ?? null,
+    });
+  });
+  autoUpdater.on('update-not-available', (info) => {
+    send('update:not-available', { version: info?.version });
+  });
+  autoUpdater.on('download-progress', (p) => {
+    send('update:progress', {
+      percent: p?.percent ?? 0,
+      transferred: p?.transferred ?? 0,
+      total: p?.total ?? 0,
+      bytesPerSecond: p?.bytesPerSecond ?? 0,
+    });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    send('update:downloaded', {
+      version: info?.version,
+      releaseNotes: info?.releaseNotes ?? null,
+      releaseDate: info?.releaseDate ?? null,
+    });
+  });
+  autoUpdater.on('error', (err) => {
+    send('update:error', { message: err?.message || String(err) });
+  });
+}
+
+function triggerUpdateCheck() {
+  if (!app.isPackaged) {
+    console.log('[updater] skipped: not packaged (dev mode)');
+    return;
+  }
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.warn('[updater] checkForUpdates failed:', err?.message || err);
+  });
+}
 
 function toNodeBuffer(bytes) {
   if (bytes instanceof Uint8Array) {
@@ -67,6 +134,10 @@ function createWindow() {
   win.on('unresponsive', () => {
     console.error('Window became unresponsive');
   });
+
+  // 自動アップデート: イベント配線 + 初回チェックを少し遅延して実行
+  setupAutoUpdater(win);
+  setTimeout(triggerUpdateCheck, 3000);
 }
 
 // ---------------------------------------------------------------------------
@@ -463,6 +534,49 @@ ipcMain.handle('archive:read', async (_event, filePath) => {
     console.error('[archive:read] error:', err.message);
     return { success: false, error: err.message };
   }
+});
+
+// ---------------------------------------------------------------------------
+// 自動アップデート IPC
+// ---------------------------------------------------------------------------
+
+/** 手動での更新チェック（ヘッダーボタン等から） */
+ipcMain.handle('update:check', async () => {
+  if (!app.isPackaged) {
+    return { success: false, error: 'dev mode: skipped' };
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return {
+      success: true,
+      updateInfo: result?.updateInfo
+        ? {
+            version: result.updateInfo.version,
+            releaseNotes: result.updateInfo.releaseNotes ?? null,
+            releaseDate: result.updateInfo.releaseDate ?? null,
+          }
+        : null,
+    };
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) };
+  }
+});
+
+/** DL完了後、再起動してインストール適用 */
+ipcMain.handle('update:install', async () => {
+  try {
+    // 第1引数: isSilent (NSISのサイレントインストール)
+    // 第2引数: isForceRunAfter (インストール後に自動起動)
+    autoUpdater.quitAndInstall(false, true);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) };
+  }
+});
+
+/** 現在のアプリバージョン取得（UI表示用） */
+ipcMain.handle('app:version', async () => {
+  return app.getVersion();
 });
 
 // ---------------------------------------------------------------------------

@@ -23,6 +23,34 @@ export interface ArchiveAPI {
   read: (filePath: string) => Promise<{ success: boolean; bytes?: Uint8Array; error?: string }>;
 }
 
+export interface UpdateInfoPayload {
+  version?: string;
+  releaseNotes?: string | null;
+  releaseDate?: string | null;
+}
+
+export interface UpdateProgressPayload {
+  percent: number;
+  transferred: number;
+  total: number;
+  bytesPerSecond: number;
+}
+
+export interface UpdateErrorPayload {
+  message: string;
+}
+
+export interface UpdateAPI {
+  check: () => Promise<{ success: boolean; updateInfo?: UpdateInfoPayload | null; error?: string }>;
+  install: () => Promise<{ success: boolean; error?: string }>;
+  onChecking: (cb: (data: Record<string, never>) => void) => () => void;
+  onAvailable: (cb: (data: UpdateInfoPayload) => void) => () => void;
+  onNotAvailable: (cb: (data: UpdateInfoPayload) => void) => () => void;
+  onProgress: (cb: (data: UpdateProgressPayload) => void) => () => void;
+  onDownloaded: (cb: (data: UpdateInfoPayload) => void) => () => void;
+  onError: (cb: (data: UpdateErrorPayload) => void) => () => void;
+}
+
 /** Electron preload で公開される API */
 interface ElectronAPI {
   selectOutputDir: () => Promise<string | null>;
@@ -33,6 +61,8 @@ interface ElectronAPI {
   getDefaultOutput: () => Promise<string>;
   library: LibraryAPI;
   archive: ArchiveAPI;
+  update: UpdateAPI;
+  getVersion: () => Promise<string>;
 }
 
 declare global {

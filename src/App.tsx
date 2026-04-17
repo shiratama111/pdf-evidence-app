@@ -6,6 +6,7 @@ import { PreviewPanel } from '@/components/preview/PreviewPanel';
 import { UploadArea } from '@/components/upload/UploadArea';
 import { AiSuggestions } from '@/components/ai/AiSuggestions';
 import { StampSettingsPanel } from '@/components/stamp/StampSettingsPanel';
+import { UpdateNotifier } from '@/components/update/UpdateNotifier';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
@@ -40,6 +41,9 @@ export default function App() {
 
       {/* AI suggestions */}
       <AiSuggestions />
+
+      {/* Auto-update notifier (bottom-right toast) */}
+      <UpdateNotifier />
 
       {/* Loading overlay */}
       {isLoading && (
