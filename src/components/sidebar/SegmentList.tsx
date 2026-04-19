@@ -8,49 +8,13 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Group, Hash, Layers } from 'lucide-react';
 import { getEffectiveSymbol } from '@/lib/pdf-stamper';
-import type { Segment } from '@/types/pdf';
+import {
+  buildSegmentTree,
+  flattenTreeToSegmentIds,
+  getTreeItemId,
+} from '@/lib/segment-tree';
 import { SortableGroupFolder } from './GroupFolder';
 import { SortableSegmentItem } from './SegmentItem';
-
-type TreeSegment = { segment: Segment; originalIndex: number };
-
-type TreeItem =
-  | { kind: 'single'; segment: Segment; originalIndex: number }
-  | { kind: 'group'; groupId: string; mainNum: number; segments: TreeSegment[] };
-
-function buildTree(segments: Segment[]): TreeItem[] {
-  const items: TreeItem[] = [];
-  let index = 0;
-
-  while (index < segments.length) {
-    const segment = segments[index];
-    if (!segment.groupId) {
-      items.push({ kind: 'single', segment, originalIndex: index });
-      index += 1;
-      continue;
-    }
-
-    const groupId = segment.groupId;
-    const groupSegments: TreeSegment[] = [];
-    while (index < segments.length && segments[index].groupId === groupId) {
-      groupSegments.push({ segment: segments[index], originalIndex: index });
-      index += 1;
-    }
-
-    items.push({
-      kind: 'group',
-      groupId,
-      mainNum: groupSegments[0].segment.evidenceNumber?.main ?? 0,
-      segments: groupSegments,
-    });
-  }
-
-  return items;
-}
-
-function getTreeItemId(item: TreeItem): string {
-  return item.kind === 'group' ? `grp_${item.groupId}` : item.segment.id;
-}
 
 export function SegmentList() {
   const {
@@ -70,7 +34,7 @@ export function SegmentList() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
-  const tree = useMemo(() => buildTree(segments), [segments]);
+  const tree = useMemo(() => buildSegmentTree(segments), [segments]);
   const sortableIds = useMemo(() => tree.map(getTreeItemId), [tree]);
   const totalPages = useMemo(
     () => segments.reduce((sum, segment) => sum + segment.pageIds.length, 0),
@@ -127,13 +91,10 @@ export function SegmentList() {
     const [moved] = newTree.splice(fromIndex, 1);
     newTree.splice(toIndex, 0, moved);
 
-    const segmentIds = newTree.flatMap((item) => (
-      item.kind === 'single'
-        ? [item.segment.id]
-        : item.segments.map(({ segment }) => segment.id)
-    ));
-
-    dispatch({ type: 'SEGMENTS_BULK_REORDERED', payload: { segmentIds } });
+    dispatch({
+      type: 'SEGMENTS_BULK_REORDERED',
+      payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
+    });
   }, [dispatch, tree]);
 
   const handleRename = useCallback((segmentId: string, name: string) => {
