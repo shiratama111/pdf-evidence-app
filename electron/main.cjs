@@ -566,8 +566,10 @@ ipcMain.handle('update:check', async () => {
 ipcMain.handle('update:install', async () => {
   try {
     // 第1引数: isSilent (NSISのサイレントインストール)
+    //   → true: アップデート時にインストーラUI・ダイアログを一切出さない
+    //   → build/installer.nsh の IfSilent で MessageBox もスキップされる
     // 第2引数: isForceRunAfter (インストール後に自動起動)
-    autoUpdater.quitAndInstall(false, true);
+    autoUpdater.quitAndInstall(true, true);
     return { success: true };
   } catch (err) {
     return { success: false, error: err?.message || String(err) };

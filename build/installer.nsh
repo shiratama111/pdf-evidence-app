@@ -4,22 +4,27 @@
 ; electron-builder の NSIS インストーラを customInstall / customUnInstall で拡張。
 ;
 ; 目的:
-;   - インストール時に「デスクトップにショートカットを作成しますか？」ダイアログを表示
+;   - 新規インストール時のみ「デスクトップにショートカットを作成しますか？」ダイアログを表示
 ;     - はい: $DESKTOP にショートカットを作成
 ;     - いいえ: 作成しない（後で手動で作れる）
-;   - サイレントインストール時（自動アップデート経由など）はダイアログを出さず、
-;     /SD IDNO 指定により「作らない」を既定動作にする。
-;     → 既に v1.3.1 以前で作成済みのショートカットはそのまま残る（上書きしない）
+;   - 以下のケースではダイアログを完全にスキップ:
+;     1. サイレントモード（自動アップデート経由など）
+;        → main.cjs の `autoUpdater.quitAndInstall(true, true)` でサイレント起動
+;     2. 既にデスクトップショートカットが存在する
+;        → 前回のインストールで「はい」を選んだユーザーがアップデート時に
+;          再度ダイアログで問われるのを防ぐ
 ;   - アンインストール時はデスクトップショートカットを削除
 ; -----------------------------------------------------------------------------
 
 !macro customInstall
-  ; /SD IDNO:
-  ;   サイレントモードで実行された時（自動アップデート適用時）は IDNO 相当とみなし、
-  ;   skipDesktopShortcut へ直接ジャンプしてダイアログをスキップ。
+  ; (1) サイレントモード時は即スキップ
+  IfSilent skipDesktopShortcut
+  ; (2) 既に同名ショートカットがあれば、再度の確認はせずスキップ
+  IfFileExists "$DESKTOP\${PRODUCT_NAME}.lnk" skipDesktopShortcut 0
+
   MessageBox MB_YESNO|MB_ICONQUESTION \
     "デスクトップにショートカットを作成しますか？" \
-    /SD IDNO IDNO skipDesktopShortcut
+    IDNO skipDesktopShortcut
     CreateShortCut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_FILENAME}.exe"
   skipDesktopShortcut:
 !macroend
