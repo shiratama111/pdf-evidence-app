@@ -44,6 +44,7 @@ export function SortableGroupFolder(props: GroupFolderProps) {
   const {
     attributes, listeners, setNodeRef: setSortableRef,
     transform, transition, isDragging, active,
+    isOver, overIndex, activeIndex,
   } = useSortable({
     id: sortableId,
     data: { type: 'group-reorder', groupId: props.groupId },
@@ -60,6 +61,12 @@ export function SortableGroupFolder(props: GroupFolderProps) {
     draggingSegId != null && props.childSegments.some((seg) => seg.id === draggingSegId);
   const showAddHighlight = isOverAdd && draggingSegId != null && !isAlreadyInGroup;
 
+  // 並び替え青ライン: 自分が over で add モードではなく、active が page でも group-add でもない
+  const activeType = active?.data.current?.type;
+  const showReorderLine =
+    isOver && !isOverAdd && activeType !== 'page' && activeType !== 'group-add';
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -68,6 +75,16 @@ export function SortableGroupFolder(props: GroupFolderProps) {
 
   return (
     <div ref={setSortableRef} style={style} {...attributes} className="relative">
+      {/* 並び替え位置インジケータ（青い横長ライン） */}
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-1' : '-top-1'
+          }`}
+          aria-hidden
+        />
+      )}
+
       {/* inset 領域の add droppable 本体（サイズは小さくレイアウトに影響させない） */}
       <div
         ref={setDroppableRef}
@@ -80,7 +97,7 @@ export function SortableGroupFolder(props: GroupFolderProps) {
         <div className="absolute inset-x-2 top-2 bottom-2 z-10 pointer-events-none ring-2 ring-blue-400/80 rounded bg-blue-50/70 shadow-[0_0_12px_rgba(59,130,246,0.5)] flex items-center justify-center">
           <div className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-blue-600 bg-white/95 border border-blue-400 rounded select-none">
             <Plus className="w-3 h-3" />
-            ここに追加
+            グループに追加
           </div>
         </div>
       )}

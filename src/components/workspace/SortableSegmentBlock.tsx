@@ -47,6 +47,7 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
   const {
     attributes, listeners, setNodeRef: setSortableRef,
     transform, transition, isDragging, active,
+    isOver, overIndex, activeIndex,
   } = useSortable({ id, data: sortableData });
 
   const style: React.CSSProperties = {
@@ -55,9 +56,22 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const activeType = active?.data.current?.type;
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
   if (props.item.kind === 'single') {
+    const showReorderLine =
+      isOver && activeType !== 'page' && activeType !== 'group-add';
     return (
-      <div ref={setSortableRef} style={style} {...attributes}>
+      <div ref={setSortableRef} style={style} {...attributes} className="relative">
+        {showReorderLine && (
+          <div
+            className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+              insertBelow ? '-bottom-1' : '-top-1'
+            }`}
+            aria-hidden
+          />
+        )}
         <SingleSegmentBlock {...props} item={props.item} dragListeners={listeners} />
       </div>
     );
@@ -68,6 +82,8 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
     <GroupSortableWrapper
       item={props.item}
       active={active}
+      isOverReorder={isOver}
+      insertBelow={insertBelow}
       sortableRef={setSortableRef}
       sortableStyle={style}
       sortableAttributes={attributes}
@@ -80,6 +96,8 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
 interface GroupSortableWrapperProps {
   item: Extract<TreeItem, { kind: 'group' }>;
   active: ReturnType<typeof useSortable>['active'];
+  isOverReorder: boolean;
+  insertBelow: boolean;
   sortableRef: (el: HTMLElement | null) => void;
   sortableStyle: React.CSSProperties;
   sortableAttributes: DraggableAttributes;
@@ -90,6 +108,8 @@ interface GroupSortableWrapperProps {
 function GroupSortableWrapper({
   item,
   active,
+  isOverReorder,
+  insertBelow,
   sortableRef,
   sortableStyle,
   sortableAttributes,
@@ -102,10 +122,15 @@ function GroupSortableWrapper({
     data: { type: 'group-add', groupId: item.groupId },
   });
 
-  const draggingSegId = active?.data.current?.type === 'segment' ? (active.id as string) : null;
+  const activeType = active?.data.current?.type;
+  const draggingSegId = activeType === 'segment' ? (active?.id as string) : null;
   const isAlreadyInGroup =
     draggingSegId != null && item.segments.some(({ segment }) => segment.id === draggingSegId);
   const showAddHighlight = isOverAdd && draggingSegId != null && !isAlreadyInGroup;
+
+  // 並び替え青ライン: reorder が over かつ add モードではなく、page / group-add ドラッグでもない
+  const showReorderLine =
+    isOverReorder && !isOverAdd && activeType !== 'page' && activeType !== 'group-add';
 
   return (
     <div
@@ -114,6 +139,16 @@ function GroupSortableWrapper({
       {...sortableAttributes}
       className="relative"
     >
+      {/* 並び替え位置インジケータ（青い横長ライン） */}
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-1' : '-top-1'
+          }`}
+          aria-hidden
+        />
+      )}
+
       {/* inset 領域の add droppable 本体（サイズは絶対配置でレイアウト不動） */}
       <div
         ref={setDroppableRef}
@@ -126,7 +161,7 @@ function GroupSortableWrapper({
         <div className="absolute inset-x-4 top-4 bottom-4 z-10 pointer-events-none ring-4 ring-blue-400/70 rounded-lg bg-blue-50/60 shadow-[0_0_12px_rgba(59,130,246,0.5)] flex items-center justify-center">
           <div className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-blue-600 bg-white/95 border border-blue-400 rounded select-none">
             <Plus className="w-3.5 h-3.5" />
-            ここに追加
+            グループに追加
           </div>
         </div>
       )}

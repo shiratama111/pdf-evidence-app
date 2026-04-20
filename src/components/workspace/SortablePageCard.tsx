@@ -57,13 +57,12 @@ export function SortablePageCard({
     data: { type: 'page', segmentId, pageIndex },
   });
 
-  // ドラッグ元（掴まれている元ページ）は点線枠の薄いプレースホルダー表示にして
-  // ユーザーが「ここから移動中」を認識しやすくする。実体の浮遊プレビューは
-  // ThumbnailGrid.tsx の DragOverlay で描画される。
+  // ドラッグ元（掴まれている元ページ）は半透明 + 点線枠で「ここから移動中」を明示する。
+  // 実体の浮遊プレビューは ThumbnailGrid.tsx の DragOverlay で描画される。
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.25 : 1,
+    opacity: isDragging ? 0.4 : 1,
   };
 
   // 挿入先インジケータ: ページ間をドラッグ中にホバー中のページの左側へ青縦ラインを出す。
@@ -75,7 +74,9 @@ export function SortablePageCard({
     <div
       ref={setNodeRef}
       style={style}
-      className="relative"
+      className={`relative rounded-lg ${
+        isDragging ? 'outline outline-2 outline-dashed outline-blue-400 outline-offset-[-2px]' : ''
+      }`}
       {...attributes}
       {...listeners}
     >
