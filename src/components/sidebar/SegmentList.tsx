@@ -2,8 +2,8 @@ import { useState, useCallback, useMemo, type DragEvent } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import {
-  DndContext, PointerSensor, useSensor, useSensors,
-  type DragEndEvent,
+  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Group, Hash, Layers } from 'lucide-react';
@@ -14,6 +14,7 @@ import {
   getTreeItemId,
 } from '@/lib/segment-tree';
 import { sidebarCollisionDetection } from '@/lib/dnd-utils';
+import { SegmentDragPreview } from '@/components/common/SegmentDragPreview';
 import { SortableGroupFolder } from './GroupFolder';
 import { SortableSegmentItem } from './SegmentItem';
 
@@ -30,6 +31,11 @@ export function SegmentList() {
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // D&D 中のオーバーレイ表示用
+  const [activeDrag, setActiveDrag] = useState<{
+    id: string;
+    type: 'segment' | 'group-reorder';
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -80,7 +86,21 @@ export function SegmentList() {
     });
   }, []);
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const type = event.active.data.current?.type as string | undefined;
+    if (type === 'segment' || type === 'group-reorder') {
+      setActiveDrag({ id: event.active.id as string, type });
+    } else {
+      setActiveDrag(null);
+    }
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveDrag(null);
+  }, []);
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveDrag(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -242,7 +262,9 @@ export function SegmentList() {
         <DndContext
           sensors={sensors}
           collisionDetection={sidebarCollisionDetection}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
         >
           <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
             {tree.map((item) => (
@@ -293,6 +315,17 @@ export function SegmentList() {
               )
             ))}
           </SortableContext>
+
+          {/* カーソル追従の浮遊プレビュー（segment/group-reorder 両対応） */}
+          <DragOverlay dropAnimation={null}>
+            {activeDrag ? (
+              <SegmentDragPreview
+                activeId={activeDrag.id}
+                activeType={activeDrag.type}
+                segments={segments}
+              />
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </div>
     </div>

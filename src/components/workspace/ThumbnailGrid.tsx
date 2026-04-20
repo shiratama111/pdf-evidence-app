@@ -19,6 +19,7 @@ import {
 import { workspaceCollisionDetection } from '@/lib/dnd-utils';
 import { SortableSegmentBlock } from './SortableSegmentBlock';
 import { ThumbnailCard } from './ThumbnailCard';
+import { SegmentDragPreview } from '@/components/common/SegmentDragPreview';
 import { RotateCw, RotateCcw, Trash2 } from 'lucide-react';
 
 export function ThumbnailGrid() {
@@ -34,8 +35,12 @@ export function ThumbnailGrid() {
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
-  // D&D 中のオーバーレイ表示用
-  const [activePageId, setActivePageId] = useState<string | null>(null);
+  // D&D 中のオーバーレイ表示用（page/segment/group-reorder 共通）
+  const [activeDrag, setActiveDrag] = useState<{
+    id: string;
+    type: 'page' | 'segment' | 'group-reorder';
+  } | null>(null);
+  const activePageId = activeDrag?.type === 'page' ? activeDrag.id : null;
   const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const lastScrolledFocusVersionRef = useRef<number>(focusVersion);
 
@@ -125,20 +130,20 @@ export function ThumbnailGrid() {
   }, []);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const type = event.active.data.current?.type;
-    if (type === 'page') {
-      setActivePageId(event.active.id as string);
+    const type = event.active.data.current?.type as string | undefined;
+    if (type === 'page' || type === 'segment' || type === 'group-reorder') {
+      setActiveDrag({ id: event.active.id as string, type });
     } else {
-      setActivePageId(null);
+      setActiveDrag(null);
     }
   }, []);
 
   const handleDragCancel = useCallback(() => {
-    setActivePageId(null);
+    setActiveDrag(null);
   }, []);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
-    setActivePageId(null);
+    setActiveDrag(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -283,12 +288,12 @@ export function ThumbnailGrid() {
           })}
         </SortableContext>
 
-        {/* カーソル追従の浮遊プレビュー（ドラッグ中のページのみ） */}
+        {/* カーソル追従の浮遊プレビュー（page/segment/group-reorder すべて対応） */}
         <DragOverlay dropAnimation={null}>
-          {activePageId && pages[activePageId] ? (
+          {activeDrag?.type === 'page' && pages[activeDrag.id] ? (
             <div className="opacity-90 rotate-2 ring-2 ring-blue-400 rounded-lg shadow-2xl cursor-grabbing">
               <ThumbnailCard
-                page={pages[activePageId]}
+                page={pages[activeDrag.id]}
                 globalIndex={0}
                 segmentColor="#3b82f6"
                 isSelected={false}
@@ -296,6 +301,12 @@ export function ThumbnailGrid() {
                 onDoubleClick={() => undefined}
               />
             </div>
+          ) : activeDrag && (activeDrag.type === 'segment' || activeDrag.type === 'group-reorder') ? (
+            <SegmentDragPreview
+              activeId={activeDrag.id}
+              activeType={activeDrag.type}
+              segments={segments}
+            />
           ) : null}
         </DragOverlay>
       </DndContext>
