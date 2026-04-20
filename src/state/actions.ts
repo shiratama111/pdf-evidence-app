@@ -65,6 +65,7 @@ export type AppAction =
   | { type: 'SEGMENTS_UNGROUPED'; payload: { groupId: string } }
   | { type: 'GROUP_CHILD_REORDERED'; payload: { groupId: string; fromSegmentId: string; toSegmentId: string } }
   | { type: 'GROUP_SEGMENT_ADDED'; payload: { segmentId: string; groupId: string } }
+  | { type: 'SEGMENT_EJECTED_FROM_GROUP'; payload: { segmentId: string; targetIndex: number } }
 
   // Reset
   | { type: 'STATE_RESET' }

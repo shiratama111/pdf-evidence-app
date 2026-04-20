@@ -1,8 +1,5 @@
 import { useState, useCallback } from 'react';
-import {
-  DndContext, closestCenter, PointerSensor, useDroppable, useSensor, useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
+import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -26,7 +23,6 @@ export interface GroupFolderProps {
   onToggleMerge: (groupId: string, mergeInExport: boolean) => void;
   onGroupRename: (groupId: string, name: string) => void;
   onGroupFocus: (groupId: string) => void;
-  onChildReorder: (groupId: string, fromSegmentId: string, toSegmentId: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   stampEnabled: boolean;
@@ -121,7 +117,6 @@ function GroupFolder({
   onToggleMerge,
   onGroupRename,
   onGroupFocus,
-  onChildReorder,
   onRename,
   onDelete,
   stampEnabled,
@@ -133,21 +128,12 @@ function GroupFolder({
   onFocus,
   dragListeners,
 }: GroupFolderProps & { dragListeners?: DragListeners }) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(groupName ?? '');
 
   const totalPages = childSegments.reduce((sum, segment) => sum + segment.pageIds.length, 0);
   const defaultLabel = stampEnabled ? `${symbol}${mainNum}号証` : `グループ (${childSegments.length}件)`;
   const folderLabel = groupName ?? defaultLabel;
-
-  const handleChildDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    onChildReorder(groupId, active.id as string, over.id as string);
-  }, [groupId, onChildReorder]);
 
   const handleStartEdit = useCallback(() => {
     setEditValue(groupName ?? '');
@@ -252,27 +238,31 @@ function GroupFolder({
 
       {!isCollapsed && (
         <div className="border-l-2 border-amber-300 border-r border-b border-gray-200 rounded-b bg-white ml-2">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleChildDragEnd}>
-            <SortableContext items={childSegments.map((segment) => segment.id)} strategy={verticalListSortingStrategy}>
-              {childSegments.map((segment, index) => (
-                <SortableChildSegmentItem
-                  key={segment.id}
-                  segment={segment}
-                  isLast={index === childSegments.length - 1}
-                  pageCount={segment.pageIds.length}
-                  onRename={onRename}
-                  onDelete={onDelete}
-                  stampEnabled={stampEnabled}
-                  symbol={symbol}
-                  format={format}
-                  isSelected={selectedSegmentIds.includes(segment.id)}
-                  isFocused={focusedSegmentId === segment.id}
-                  onToggleSelect={onToggleSelect}
-                  onFocus={onFocus}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
+          {/*
+           * 親 SegmentList の DndContext 配下で動作する SortableContext。
+           * ネストされた DndContext を廃し、group-child の drop を親で扱うことで
+           * 「グループ外へ取り出す」経路を解放する（親 handleDragEnd で分岐）。
+           */}
+          <SortableContext items={childSegments.map((segment) => segment.id)} strategy={verticalListSortingStrategy}>
+            {childSegments.map((segment, index) => (
+              <SortableChildSegmentItem
+                key={segment.id}
+                segment={segment}
+                groupId={groupId}
+                isLast={index === childSegments.length - 1}
+                pageCount={segment.pageIds.length}
+                onRename={onRename}
+                onDelete={onDelete}
+                stampEnabled={stampEnabled}
+                symbol={symbol}
+                format={format}
+                isSelected={selectedSegmentIds.includes(segment.id)}
+                isFocused={focusedSegmentId === segment.id}
+                onToggleSelect={onToggleSelect}
+                onFocus={onFocus}
+              />
+            ))}
+          </SortableContext>
         </div>
       )}
     </div>

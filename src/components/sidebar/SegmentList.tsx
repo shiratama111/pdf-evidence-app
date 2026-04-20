@@ -31,10 +31,10 @@ export function SegmentList() {
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  // D&D 中のオーバーレイ表示用
+  // D&D 中のオーバーレイ表示用（segment/group-reorder/group-child すべて共通）
   const [activeDrag, setActiveDrag] = useState<{
     id: string;
-    type: 'segment' | 'group-reorder';
+    type: 'segment' | 'group-reorder' | 'group-child';
   } | null>(null);
 
   const sensors = useSensors(
@@ -88,7 +88,7 @@ export function SegmentList() {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const type = event.active.data.current?.type as string | undefined;
-    if (type === 'segment' || type === 'group-reorder') {
+    if (type === 'segment' || type === 'group-reorder' || type === 'group-child') {
       setActiveDrag({ id: event.active.id as string, type });
     } else {
       setActiveDrag(null);
@@ -107,13 +107,12 @@ export function SegmentList() {
     const activeType = active.data.current?.type;
     const overType = over.data.current?.type;
 
-    // ケース1: セグメントをグループ中央 (add droppable) にドロップ → グループ追加
-    if (activeType === 'segment' && overType === 'group-add') {
+    // ケース1: セグメント or グループ子をグループ中央（add droppable）にドロップ → グループに追加
+    if ((activeType === 'segment' || activeType === 'group-child') && overType === 'group-add') {
       const targetGroupId = over.data.current?.groupId as string | undefined;
       if (!targetGroupId) return;
-      // 既に同じグループに属している場合はノーオペレーション
       const seg = segments.find((s) => s.id === active.id);
-      if (seg?.groupId === targetGroupId) return;
+      if (seg?.groupId === targetGroupId) return; // 既に同じグループ
       dispatch({
         type: 'GROUP_SEGMENT_ADDED',
         payload: { segmentId: active.id as string, groupId: targetGroupId },
@@ -122,24 +121,82 @@ export function SegmentList() {
     }
 
     // 明示的 no-op: group-reorder を group-add にドロップしてもグループ並び替えには使わない
-    // （collision detection 側で除外済みだが、意図を残すため明示）
     if (activeType === 'group-reorder' && overType === 'group-add') {
       return;
     }
 
-    // ケース2: セグメント／グループの並び替え（over が group-reorder / segment の場合）
-    const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
-    const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
-    if (fromIndex === -1 || toIndex === -1) return;
+    // ケース2: group-child 同士のドロップ
+    if (activeType === 'group-child' && overType === 'group-child') {
+      const activeGroupId = active.data.current?.groupId as string | undefined;
+      const overGroupId = over.data.current?.groupId as string | undefined;
+      if (!activeGroupId || !overGroupId) return;
 
-    const newTree = [...tree];
-    const [moved] = newTree.splice(fromIndex, 1);
-    newTree.splice(toIndex, 0, moved);
+      if (activeGroupId === overGroupId) {
+        // 同じグループ内 → 枝番並び替え
+        dispatch({
+          type: 'GROUP_CHILD_REORDERED',
+          payload: {
+            groupId: activeGroupId,
+            fromSegmentId: active.id as string,
+            toSegmentId: over.id as string,
+          },
+        });
+      } else {
+        // 別グループの子 → そのグループに移動（末尾追加）
+        dispatch({
+          type: 'GROUP_SEGMENT_ADDED',
+          payload: { segmentId: active.id as string, groupId: overGroupId },
+        });
+      }
+      return;
+    }
 
-    dispatch({
-      type: 'SEGMENTS_BULK_REORDERED',
-      payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
-    });
+    // ケース3: group-child → segment / group-reorder（トップレベル）にドロップ → グループから離脱
+    if (activeType === 'group-child' && (overType === 'segment' || overType === 'group-reorder')) {
+      const overTreeIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
+      if (overTreeIndex === -1) return;
+
+      // 挿入位置（state.segments 配列ベース）を計算
+      // カーソル位置で over の前後どちらに挿入するかを判定
+      const activeRect = active.rect.current?.translated;
+      const overRect = over.rect;
+      const insertBelow = activeRect && overRect
+        ? activeRect.top + activeRect.height / 2 > overRect.top + overRect.height / 2
+        : false;
+
+      const overItem = tree[overTreeIndex];
+      let targetIndex: number;
+      if (overItem.kind === 'single') {
+        targetIndex = overItem.originalIndex + (insertBelow ? 1 : 0);
+      } else {
+        // group: 前に挿入 = 先頭 / 後ろに挿入 = 末尾の次
+        const first = overItem.segments[0].originalIndex;
+        const last = overItem.segments[overItem.segments.length - 1].originalIndex;
+        targetIndex = insertBelow ? last + 1 : first;
+      }
+
+      dispatch({
+        type: 'SEGMENT_EJECTED_FROM_GROUP',
+        payload: { segmentId: active.id as string, targetIndex },
+      });
+      return;
+    }
+
+    // ケース4: セグメント／グループの並び替え（既存挙動）
+    if (activeType === 'segment' || activeType === 'group-reorder') {
+      const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
+      const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
+      if (fromIndex === -1 || toIndex === -1) return;
+
+      const newTree = [...tree];
+      const [moved] = newTree.splice(fromIndex, 1);
+      newTree.splice(toIndex, 0, moved);
+
+      dispatch({
+        type: 'SEGMENTS_BULK_REORDERED',
+        payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
+      });
+    }
   }, [dispatch, tree, segments]);
 
   const handleRename = useCallback((segmentId: string, name: string) => {
@@ -177,17 +234,6 @@ export function SegmentList() {
 
   const handleUngroup = useCallback((groupId: string) => {
     dispatch({ type: 'SEGMENTS_UNGROUPED', payload: { groupId } });
-  }, [dispatch]);
-
-  const handleChildReorder = useCallback((
-    groupId: string,
-    fromSegmentId: string,
-    toSegmentId: string,
-  ) => {
-    dispatch({
-      type: 'GROUP_CHILD_REORDERED',
-      payload: { groupId, fromSegmentId, toSegmentId },
-    });
   }, [dispatch]);
 
   const handleToggleMerge = useCallback((groupId: string, mergeInExport: boolean) => {
@@ -283,7 +329,6 @@ export function SegmentList() {
                   onToggleMerge={handleToggleMerge}
                   onGroupRename={handleGroupRename}
                   onGroupFocus={handleGroupFocus}
-                  onChildReorder={handleChildReorder}
                   onRename={handleRename}
                   onDelete={handleDelete}
                   stampEnabled={stampEnabled}

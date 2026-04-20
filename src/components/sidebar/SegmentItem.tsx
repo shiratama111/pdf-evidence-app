@@ -27,7 +27,10 @@ export interface SegmentItemProps extends BaseSegmentItemProps {
   isInGroup: boolean;
 }
 
-export type ChildSegmentItemProps = BaseSegmentItemProps;
+export interface ChildSegmentItemProps extends BaseSegmentItemProps {
+  /** 親グループID。D&Dの data.type = 'group-child' の groupId として使う */
+  groupId: string;
+}
 
 export function SortableSegmentItem(props: SegmentItemProps) {
   const {
@@ -67,16 +70,34 @@ export function SortableSegmentItem(props: SegmentItemProps) {
 export function SortableChildSegmentItem(props: ChildSegmentItemProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: props.segment.id });
+    isOver, overIndex, activeIndex, active,
+  } = useSortable({
+    id: props.segment.id,
+    data: { type: 'group-child', groupId: props.groupId },
+  });
 
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）。
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
+  // 他のgroup-childを掴んでいる時だけ青ラインを出す（他タイプのドラッグでは出さない）
+  const activeType = active?.data.current?.type;
+  const showReorderLine = isOver && activeType === 'group-child';
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style} {...attributes} className="relative">
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[2px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_4px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-[1px]' : '-top-[1px]'
+          }`}
+          aria-hidden
+        />
+      )}
       <ChildSegmentItem {...props} dragListeners={listeners} />
     </div>
   );

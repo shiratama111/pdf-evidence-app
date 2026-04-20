@@ -6,6 +6,8 @@
  * - page ドラッグ中にセグメント/グループ droppable が干渉しない
  * - segment ドラッグ中に page droppable が干渉しない
  * - group-reorder ドラッグ中に group-add に吸われない（group同士の並び替え維持）
+ * - group-child（グループ内セグメント）ドラッグ中は全タイプにヒット可能
+ *   → handleDragEnd 側で「同グループの枝番並び替え / 他グループへ移動 / グループ離脱」を分岐
  */
 import {
   closestCenter,
@@ -38,6 +40,7 @@ function withFallback(args: DetectionArgs) {
  * - page ドラッグ → page のみ許可（segment/group系を除外、SortablePageCard/EndZoneとの干渉防止）
  * - group-reorder → segment + group-reorder（グループ並び替えで group-add に吸われない）
  * - segment → segment + group-reorder + group-add（セグメント並び替え/グループ追加）
+ * - group-child → segment + group-reorder + group-add + group-child（取り出し/移動/枝番並び替え）
  */
 export const workspaceCollisionDetection: CollisionDetection = (args) => {
   const activeType = args.active.data.current?.type;
@@ -49,7 +52,11 @@ export const workspaceCollisionDetection: CollisionDetection = (args) => {
         ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder')
         : activeType === 'segment'
           ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder' || t === 'group-add')
-          : args;
+          : activeType === 'group-child'
+            ? filterByType(args, (t) => (
+              t === 'segment' || t === 'group-reorder' || t === 'group-add' || t === 'group-child'
+            ))
+            : args;
 
   return withFallback(scoped);
 };
@@ -59,6 +66,7 @@ export const workspaceCollisionDetection: CollisionDetection = (args) => {
  * - page drag は存在しないので workspace より単純
  * - group-reorder → segment + group-reorder
  * - segment → segment + group-reorder + group-add
+ * - group-child → segment + group-reorder + group-add + group-child（取り出し/移動/枝番並び替え）
  */
 export const sidebarCollisionDetection: CollisionDetection = (args) => {
   const activeType = args.active.data.current?.type;
@@ -68,7 +76,11 @@ export const sidebarCollisionDetection: CollisionDetection = (args) => {
       ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder')
       : activeType === 'segment'
         ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder' || t === 'group-add')
-        : args;
+        : activeType === 'group-child'
+          ? filterByType(args, (t) => (
+            t === 'segment' || t === 'group-reorder' || t === 'group-add' || t === 'group-child'
+          ))
+          : args;
 
   return withFallback(scoped);
 };

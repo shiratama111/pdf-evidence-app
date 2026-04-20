@@ -6,6 +6,7 @@ import {
   bulkReorderSegments,
   createEvidenceGroup,
   deleteSegment,
+  ejectSegmentFromGroup,
   groupSelectedSegments,
   mergeAllSegments,
   mergeSegmentWithNext,
@@ -116,6 +117,8 @@ export function segmentsReducer(state: AppState, action: AppAction): AppState | 
       );
     case 'GROUP_SEGMENT_ADDED':
       return addSegmentToGroup(state, action.payload.segmentId, action.payload.groupId);
+    case 'SEGMENT_EJECTED_FROM_GROUP':
+      return ejectSegmentFromGroup(state, action.payload.segmentId, action.payload.targetIndex);
     default:
       return null;
   }

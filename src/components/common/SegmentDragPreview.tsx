@@ -11,7 +11,7 @@ import type { Segment } from '@/types/pdf';
 
 interface SegmentDragPreviewProps {
   activeId: string;
-  activeType: 'segment' | 'group-reorder';
+  activeType: 'segment' | 'group-reorder' | 'group-child';
   segments: Segment[];
 }
 
@@ -19,7 +19,8 @@ const WRAPPER_CLASS =
   'opacity-85 -rotate-3 ring-2 ring-blue-400 shadow-2xl cursor-grabbing select-none pointer-events-none';
 
 export function SegmentDragPreview({ activeId, activeType, segments }: SegmentDragPreviewProps) {
-  if (activeType === 'segment') {
+  // segment / group-child は見た目共通（どちらも単一セグメント）
+  if (activeType === 'segment' || activeType === 'group-child') {
     const seg = segments.find((s) => s.id === activeId);
     if (!seg) return null;
     return (

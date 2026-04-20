@@ -35,10 +35,10 @@ export function ThumbnailGrid() {
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
-  // D&D 中のオーバーレイ表示用（page/segment/group-reorder 共通）
+  // D&D 中のオーバーレイ表示用（page/segment/group-reorder/group-child 共通）
   const [activeDrag, setActiveDrag] = useState<{
     id: string;
-    type: 'page' | 'segment' | 'group-reorder';
+    type: 'page' | 'segment' | 'group-reorder' | 'group-child';
   } | null>(null);
   const activePageId = activeDrag?.type === 'page' ? activeDrag.id : null;
   const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -131,7 +131,7 @@ export function ThumbnailGrid() {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const type = event.active.data.current?.type as string | undefined;
-    if (type === 'page' || type === 'segment' || type === 'group-reorder') {
+    if (type === 'page' || type === 'segment' || type === 'group-reorder' || type === 'group-child') {
       setActiveDrag({ id: event.active.id as string, type });
     } else {
       setActiveDrag(null);
@@ -148,10 +148,10 @@ export function ThumbnailGrid() {
     if (!over || active.id === over.id) return;
 
     const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
 
     // Case 1: ページ D&D（セグメント内並び替え or 別セグメントへ移動）
     if (activeType === 'page') {
-      const overType = over.data.current?.type;
       if (overType !== 'page') return; // 現状はページ→ページ間の drop のみ対応
 
       const targetSegmentId = over.data.current?.segmentId as string | undefined;
@@ -169,14 +169,12 @@ export function ThumbnailGrid() {
       return;
     }
 
-    // Case 2: セグメントをグループ中央（group-add droppable）にドロップ → グループ追加
-    const overType = over.data.current?.type;
-    if (activeType === 'segment' && overType === 'group-add') {
+    // Case 2: セグメント or group-child をグループ中央（group-add droppable）にドロップ → グループ追加
+    if ((activeType === 'segment' || activeType === 'group-child') && overType === 'group-add') {
       const targetGroupId = over.data.current?.groupId as string | undefined;
       if (!targetGroupId) return;
-      // 既に同じグループに属しているセグメントはノーオペレーション
       const seg = segments.find((s) => s.id === active.id);
-      if (seg?.groupId === targetGroupId) return;
+      if (seg?.groupId === targetGroupId) return; // 既に同じグループ
       dispatch({
         type: 'GROUP_SEGMENT_ADDED',
         payload: { segmentId: active.id as string, groupId: targetGroupId },
@@ -185,24 +183,80 @@ export function ThumbnailGrid() {
     }
 
     // 明示的 no-op: group-reorder を group-add にドロップしても何もしない
-    // （collision detection で除外済みだが意図を残すため明示）
     if (activeType === 'group-reorder' && overType === 'group-add') {
       return;
     }
 
-    // Case 3: セグメント並び替え（group-reorder / segment が over）
-    const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
-    const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
-    if (fromIndex === -1 || toIndex === -1) return;
+    // Case 3: group-child 同士のドロップ
+    if (activeType === 'group-child' && overType === 'group-child') {
+      const activeGroupId = active.data.current?.groupId as string | undefined;
+      const overGroupId = over.data.current?.groupId as string | undefined;
+      if (!activeGroupId || !overGroupId) return;
 
-    const newTree = [...tree];
-    const [moved] = newTree.splice(fromIndex, 1);
-    newTree.splice(toIndex, 0, moved);
+      if (activeGroupId === overGroupId) {
+        // 同じグループ内 → 枝番並び替え
+        dispatch({
+          type: 'GROUP_CHILD_REORDERED',
+          payload: {
+            groupId: activeGroupId,
+            fromSegmentId: active.id as string,
+            toSegmentId: over.id as string,
+          },
+        });
+      } else {
+        // 別グループの子 → そのグループに移動
+        dispatch({
+          type: 'GROUP_SEGMENT_ADDED',
+          payload: { segmentId: active.id as string, groupId: overGroupId },
+        });
+      }
+      return;
+    }
 
-    dispatch({
-      type: 'SEGMENTS_BULK_REORDERED',
-      payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
-    });
+    // Case 4: group-child → segment / group-reorder（トップレベル）にドロップ → グループから離脱
+    if (activeType === 'group-child' && (overType === 'segment' || overType === 'group-reorder')) {
+      const overTreeIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
+      if (overTreeIndex === -1) return;
+
+      // カーソルの上下で挿入位置を判定
+      const activeRect = active.rect.current?.translated;
+      const overRect = over.rect;
+      const insertBelow = activeRect && overRect
+        ? activeRect.top + activeRect.height / 2 > overRect.top + overRect.height / 2
+        : false;
+
+      const overItem = tree[overTreeIndex];
+      let targetIndex: number;
+      if (overItem.kind === 'single') {
+        targetIndex = overItem.originalIndex + (insertBelow ? 1 : 0);
+      } else {
+        const first = overItem.segments[0].originalIndex;
+        const last = overItem.segments[overItem.segments.length - 1].originalIndex;
+        targetIndex = insertBelow ? last + 1 : first;
+      }
+
+      dispatch({
+        type: 'SEGMENT_EJECTED_FROM_GROUP',
+        payload: { segmentId: active.id as string, targetIndex },
+      });
+      return;
+    }
+
+    // Case 5: セグメント並び替え（既存挙動）
+    if (activeType === 'segment' || activeType === 'group-reorder') {
+      const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
+      const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
+      if (fromIndex === -1 || toIndex === -1) return;
+
+      const newTree = [...tree];
+      const [moved] = newTree.splice(fromIndex, 1);
+      newTree.splice(toIndex, 0, moved);
+
+      dispatch({
+        type: 'SEGMENTS_BULK_REORDERED',
+        payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
+      });
+    }
   }, [dispatch, tree, segments]);
 
   // tree 上の累積ページインデックスを計算
@@ -301,7 +355,11 @@ export function ThumbnailGrid() {
                 onDoubleClick={() => undefined}
               />
             </div>
-          ) : activeDrag && (activeDrag.type === 'segment' || activeDrag.type === 'group-reorder') ? (
+          ) : activeDrag && (
+            activeDrag.type === 'segment' ||
+            activeDrag.type === 'group-reorder' ||
+            activeDrag.type === 'group-child'
+          ) ? (
             <SegmentDragPreview
               activeId={activeDrag.id}
               activeType={activeDrag.type}
