@@ -69,11 +69,15 @@ function stampMergedGroupPages(
   symbol: string,
   stampSettings: StampSettings,
   font: Awaited<ReturnType<typeof embedStampFont>>,
+  pages: Record<PageId, PdfPage>,
 ): void {
   for (let i = 0; i < groupSegments.length; i++) {
     const groupSegment = groupSegments[i];
     const appendResult = appendResults[i];
     if (!appendResult.addedAny || !groupSegment.evidenceNumber) continue;
+
+    const firstPageId = groupSegment.pageIds[0];
+    const firstPageRotation = firstPageId ? (pages[firstPageId]?.rotation ?? 0) : 0;
 
     stampSegmentFirstPage(
       pdfDoc,
@@ -82,6 +86,7 @@ function stampMergedGroupPages(
       symbol,
       stampSettings,
       font,
+      firstPageRotation,
     );
   }
 }
@@ -129,7 +134,7 @@ export async function splitWithStamp(
 
         if (fontBytes) {
           const font = await embedStampFont(newDoc, fontBytes);
-          stampMergedGroupPages(newDoc, groupSegs, appendResults, symbol, stampSettings, font);
+          stampMergedGroupPages(newDoc, groupSegs, appendResults, symbol, stampSettings, font, pages);
         }
 
         removeMetadataIfNeeded(newDoc, stampSettings);
@@ -163,6 +168,8 @@ export async function splitWithStamp(
 
       if (seg.evidenceNumber && fontBytes) {
         const font = await embedStampFont(newDoc, fontBytes);
+        const firstPageId = seg.pageIds[0];
+        const firstPageRotation = firstPageId ? (pages[firstPageId]?.rotation ?? 0) : 0;
         stampSegmentFirstPage(
           newDoc,
           appendResult.firstPageIndex,
@@ -170,6 +177,7 @@ export async function splitWithStamp(
           symbol,
           stampSettings,
           font,
+          firstPageRotation,
         );
       }
 

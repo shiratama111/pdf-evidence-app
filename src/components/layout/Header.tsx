@@ -3,6 +3,7 @@ import { useAppState, useAppDispatch, useUndoRedo } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import { useExport } from '@/hooks/useExport';
 import { useGemini } from '@/hooks/useGemini';
+import { useAppVersion } from '@/hooks/useAppVersion';
 import {
   FilePlus, Download, RotateCcw, PanelRight,
   Sparkles, Loader2, Stamp, Undo2, Redo2,
@@ -17,6 +18,7 @@ export function Header() {
   const { loadFiles } = usePdfLoader();
   const { exportIndividual, exportMerged, exportSelected, isExporting } = useExport();
   const { analyze, isProcessing: isAiProcessing } = useGemini();
+  const appVersion = useAppVersion();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
@@ -25,8 +27,16 @@ export function Header() {
   return (
     <header className="h-12 flex items-center px-3 border-b border-gray-200 bg-white gap-2 flex-shrink-0">
       {/* Logo */}
-      <h1 className="text-base font-bold text-gray-800 mr-4 select-none">
+      <h1 className="text-base font-bold text-gray-800 mr-4 select-none flex items-baseline gap-1.5">
         <span className="text-blue-600">PDF証拠作成</span>
+        {appVersion && (
+          <span
+            className="text-[10px] font-normal text-gray-400"
+            title={`アプリバージョン ${appVersion}`}
+          >
+            v{appVersion}
+          </span>
+        )}
       </h1>
 
       {/* File add */}

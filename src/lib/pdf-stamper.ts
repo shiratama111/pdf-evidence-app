@@ -178,16 +178,23 @@ export function getEffectiveSymbol(settings: StampSettings): string {
  *   ページ回転と合わせて合計 0 度になるよう打ち消す
  * - 矩形は axis-aligned で物理配置。物理での w/h は、R=90/270 のとき見た目で入れ替わる
  *   ため、物理 w=boxH, h=boxW となる
+ *
+ * @param pageRotationDeg
+ *   ページの /Rotate（時計回り度数、0/90/180/270）を明示指定する。
+ *   省略時は page.getRotation().angle を使うが、pdf-lib の setRotation が
+ *   反映される前のタイミングで呼ぶと 0 を返すため、呼び出し側で明示指定を推奨。
  */
 export function drawStampOnPage(
   page: PDFPage,
   font: PDFFont,
   label: string,
   settings: StampSettings,
+  pageRotationDeg?: number,
 ): void {
   const { width: W, height: H } = page.getSize();
   // PDF /Rotate（時計回り度数、0/90/180/270 に正規化）
-  const rotationDeg = (((page.getRotation().angle % 360) + 360) % 360) as 0 | 90 | 180 | 270;
+  const rawRotation = pageRotationDeg ?? page.getRotation().angle;
+  const rotationDeg = (((rawRotation % 360) + 360) % 360) as 0 | 90 | 180 | 270;
 
   const fontSize = settings.fontSize;
   const textWidth = font.widthOfTextAtSize(label, fontSize);

@@ -118,12 +118,13 @@ export function stampSegmentFirstPage(
   symbol: string,
   stampSettings: StampSettings,
   font: PDFFont | null,
+  pageRotation: number = 0,
 ): void {
   if (!evidenceNumber || !font) return;
 
   const label = formatStampLabel(symbol, evidenceNumber, stampSettings.format);
   const firstPage = pdfDoc.getPage(firstPageIndex);
-  drawStampOnPage(firstPage, font, label, stampSettings);
+  drawStampOnPage(firstPage, font, label, stampSettings, pageRotation);
 }
 
 export function removeMetadataIfNeeded(
