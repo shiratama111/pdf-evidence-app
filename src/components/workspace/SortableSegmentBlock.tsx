@@ -9,13 +9,13 @@
  * - D&D はドラッグハンドル経由のみ（誤ドラッグ防止）
  * - SegmentList と同じ buildSegmentTree を使ってトップレベル並びを揃える
  */
-import { useSortable } from '@dnd-kit/sortable';
+import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Check, FolderOpen, GripVertical, Scissors } from 'lucide-react';
 import type { PdfPage, Segment } from '@/types/pdf';
 import type { TreeItem } from '@/lib/segment-tree';
 import { getTreeItemId } from '@/lib/segment-tree';
-import { ThumbnailCard } from './ThumbnailCard';
+import { SortablePageCard } from './SortablePageCard';
 
 type DragListeners = Record<string, unknown>;
 
@@ -38,7 +38,7 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
   const id = getTreeItemId(props.item);
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, data: { type: 'segment' } });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -282,35 +282,41 @@ function SegmentPageGrid({
   segment, pages, startIndex, selectedPageIds, onPageSelect, onPageDoubleClick, onSplit,
 }: SegmentPageGridProps) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 group">
-      {segment.pageIds.map((pageId, i) => {
-        const page = pages[pageId];
-        if (!page) return null;
-        return (
-          <div key={pageId} className="relative">
-            <ThumbnailCard
+    <SortableContext items={segment.pageIds} strategy={rectSortingStrategy}>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 group">
+        {segment.pageIds.map((pageId, i) => {
+          const page = pages[pageId];
+          if (!page) return null;
+          return (
+            <SortablePageCard
+              key={pageId}
+              pageId={pageId}
+              segmentId={segment.id}
+              pageIndex={i}
               page={page}
               globalIndex={startIndex + i}
               segmentColor={segment.color}
               isSelected={selectedPageIds.includes(pageId)}
               onSelect={onPageSelect}
               onDoubleClick={onPageDoubleClick}
-            />
-            {i < segment.pageIds.length - 1 && (
-              <button
-                className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 hover:!opacity-100 p-1 bg-white border border-gray-300 rounded-full shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSplit(segment.id, pageId);
-                }}
-                title="ここで分割"
-              >
-                <Scissors className="w-3 h-3 text-gray-500" />
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
+            >
+              {i < segment.pageIds.length - 1 && (
+                <button
+                  className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 hover:!opacity-100 p-1 bg-white border border-gray-300 rounded-full shadow-sm hover:bg-blue-50 hover:border-blue-300 transition-opacity"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSplit(segment.id, pageId);
+                  }}
+                  title="ここで分割"
+                >
+                  <Scissors className="w-3 h-3 text-gray-500" />
+                </button>
+              )}
+            </SortablePageCard>
+          );
+        })}
+      </div>
+    </SortableContext>
   );
 }

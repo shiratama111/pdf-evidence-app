@@ -123,6 +123,29 @@ export function ThumbnailGrid() {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
+    const activeType = active.data.current?.type;
+
+    // Case 1: ページ D&D（セグメント内並び替え or 別セグメントへ移動）
+    if (activeType === 'page') {
+      const overType = over.data.current?.type;
+      if (overType !== 'page') return; // 現状はページ→ページ間の drop のみ対応
+
+      const targetSegmentId = over.data.current?.segmentId as string | undefined;
+      const targetIndex = over.data.current?.pageIndex as number | undefined;
+      if (!targetSegmentId || targetIndex == null) return;
+
+      dispatch({
+        type: 'PAGES_MOVED',
+        payload: {
+          pageIds: [active.id as string],
+          targetSegmentId,
+          targetIndex,
+        },
+      });
+      return;
+    }
+
+    // Case 2: セグメント並び替え（既存）
     const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
     const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
     if (fromIndex === -1 || toIndex === -1) return;
