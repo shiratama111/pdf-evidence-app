@@ -32,7 +32,8 @@ export type ChildSegmentItemProps = BaseSegmentItemProps;
 export function SortableSegmentItem(props: SegmentItemProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: props.segment.id });
+    isOver, overIndex, activeIndex, active,
+  } = useSortable({ id: props.segment.id, data: { type: 'segment' } });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -40,8 +41,21 @@ export function SortableSegmentItem(props: SegmentItemProps) {
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const activeType = active?.data.current?.type;
+  const showReorderLine =
+    isOver && activeType !== 'page' && activeType !== 'group-add';
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style} {...attributes} className="relative">
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-0.5' : '-top-0.5'
+          }`}
+          aria-hidden
+        />
+      )}
       <SegmentRow {...props} dragListeners={listeners} />
     </div>
   );

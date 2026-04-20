@@ -4,7 +4,6 @@ import { usePdfLoader } from '@/hooks/usePdfLoader';
 import {
   DndContext,
   DragOverlay,
-  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
@@ -17,6 +16,7 @@ import {
   flattenTreeToSegmentIds,
   getTreeItemId,
 } from '@/lib/segment-tree';
+import { workspaceCollisionDetection } from '@/lib/dnd-utils';
 import { SortableSegmentBlock } from './SortableSegmentBlock';
 import { ThumbnailCard } from './ThumbnailCard';
 import { RotateCw, RotateCcw, Trash2 } from 'lucide-react';
@@ -164,7 +164,28 @@ export function ThumbnailGrid() {
       return;
     }
 
-    // Case 2: セグメント並び替え（既存）
+    // Case 2: セグメントをグループ中央（group-add droppable）にドロップ → グループ追加
+    const overType = over.data.current?.type;
+    if (activeType === 'segment' && overType === 'group-add') {
+      const targetGroupId = over.data.current?.groupId as string | undefined;
+      if (!targetGroupId) return;
+      // 既に同じグループに属しているセグメントはノーオペレーション
+      const seg = segments.find((s) => s.id === active.id);
+      if (seg?.groupId === targetGroupId) return;
+      dispatch({
+        type: 'GROUP_SEGMENT_ADDED',
+        payload: { segmentId: active.id as string, groupId: targetGroupId },
+      });
+      return;
+    }
+
+    // 明示的 no-op: group-reorder を group-add にドロップしても何もしない
+    // （collision detection で除外済みだが意図を残すため明示）
+    if (activeType === 'group-reorder' && overType === 'group-add') {
+      return;
+    }
+
+    // Case 3: セグメント並び替え（group-reorder / segment が over）
     const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
     const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
     if (fromIndex === -1 || toIndex === -1) return;
@@ -177,7 +198,7 @@ export function ThumbnailGrid() {
       type: 'SEGMENTS_BULK_REORDERED',
       payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
     });
-  }, [dispatch, tree]);
+  }, [dispatch, tree, segments]);
 
   // tree 上の累積ページインデックスを計算
   let runningPageIndex = 0;
@@ -224,7 +245,7 @@ export function ThumbnailGrid() {
       {/* Sortable Segments / Groups */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={workspaceCollisionDetection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
