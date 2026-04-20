@@ -50,10 +50,11 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
     isOver, overIndex, activeIndex,
   } = useSortable({ id, data: sortableData });
 
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）。
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
   const activeType = active?.data.current?.type;

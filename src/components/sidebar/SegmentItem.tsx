@@ -35,10 +35,13 @@ export function SortableSegmentItem(props: SegmentItemProps) {
     isOver, overIndex, activeIndex, active,
   } = useSortable({ id: props.segment.id, data: { type: 'segment' } });
 
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）。
+  // 空間は保持されるので他のアイテムが詰まり過ぎず、
+  // @dnd-kit の transition と組み合わさって滑らかに動く。
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
   const activeType = active?.data.current?.type;

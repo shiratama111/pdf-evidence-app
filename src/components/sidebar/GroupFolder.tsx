@@ -67,10 +67,11 @@ export function SortableGroupFolder(props: GroupFolderProps) {
     isOver && !isOverAdd && activeType !== 'page' && activeType !== 'group-add';
   const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
 
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）。
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
   return (
