@@ -251,6 +251,7 @@ export function ThumbnailGrid() {
                 selectedSegmentIds={selectedSegmentIds}
                 focusedSegmentId={focusedSegmentId}
                 focusedGroupId={focusedGroupId}
+                isDraggingPage={activePageId !== null}
                 registerRef={registerRef}
                 onPageSelect={handlePageSelect}
                 onPageDoubleClick={handlePageDoubleClick}

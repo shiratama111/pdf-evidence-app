@@ -16,6 +16,7 @@ import type { PdfPage, Segment } from '@/types/pdf';
 import type { TreeItem } from '@/lib/segment-tree';
 import { getTreeItemId } from '@/lib/segment-tree';
 import { SortablePageCard } from './SortablePageCard';
+import { SortablePageEndZone } from './SortablePageEndZone';
 
 type DragListeners = Record<string, unknown>;
 
@@ -27,6 +28,8 @@ interface SortableSegmentBlockProps {
   selectedSegmentIds: string[];
   focusedSegmentId: string | null;
   focusedGroupId: string | null;
+  /** ページD&D中フラグ。true の間だけ各セグメント末尾にドロップゾーンを表示する */
+  isDraggingPage: boolean;
   registerRef: (id: string, el: HTMLDivElement | null) => void;
   onPageSelect: (pageId: string, additive: boolean) => void;
   onPageDoubleClick: (pageId: string) => void;
@@ -67,6 +70,7 @@ function SingleSegmentBlock({
   selectedSegmentIds,
   focusedSegmentId,
   focusedGroupId,
+  isDraggingPage,
   registerRef,
   onPageSelect,
   onPageDoubleClick,
@@ -106,6 +110,7 @@ function SingleSegmentBlock({
         pages={pages}
         startIndex={startIndex}
         selectedPageIds={selectedPageIds}
+        isDraggingPage={isDraggingPage}
         onPageSelect={onPageSelect}
         onPageDoubleClick={onPageDoubleClick}
         onSplit={onSplit}
@@ -126,6 +131,7 @@ function GroupSegmentBlock({
   selectedSegmentIds,
   focusedSegmentId,
   focusedGroupId,
+  isDraggingPage,
   registerRef,
   onPageSelect,
   onPageDoubleClick,
@@ -203,6 +209,7 @@ function GroupSegmentBlock({
                 pages={pages}
                 startIndex={segStart}
                 selectedPageIds={selectedPageIds}
+                isDraggingPage={isDraggingPage}
                 onPageSelect={onPageSelect}
                 onPageDoubleClick={onPageDoubleClick}
                 onSplit={onSplit}
@@ -273,16 +280,24 @@ interface SegmentPageGridProps {
   pages: Record<string, PdfPage>;
   startIndex: number;
   selectedPageIds: string[];
+  isDraggingPage: boolean;
   onPageSelect: (pageId: string, additive: boolean) => void;
   onPageDoubleClick: (pageId: string) => void;
   onSplit: (segmentId: string, afterPageId: string) => void;
 }
 
 function SegmentPageGrid({
-  segment, pages, startIndex, selectedPageIds, onPageSelect, onPageDoubleClick, onSplit,
+  segment, pages, startIndex, selectedPageIds, isDraggingPage,
+  onPageSelect, onPageDoubleClick, onSplit,
 }: SegmentPageGridProps) {
+  // ページD&D中は末尾ドロップゾーンを SortableContext の items に含める
+  const endZoneId = `end:${segment.id}`;
+  const sortableIds = isDraggingPage
+    ? [...segment.pageIds, endZoneId]
+    : segment.pageIds;
+
   return (
-    <SortableContext items={segment.pageIds} strategy={rectSortingStrategy}>
+    <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 group">
         {segment.pageIds.map((pageId, i) => {
           const page = pages[pageId];
@@ -316,6 +331,12 @@ function SegmentPageGrid({
             </SortablePageCard>
           );
         })}
+        {isDraggingPage && (
+          <SortablePageEndZone
+            segmentId={segment.id}
+            endIndex={segment.pageIds.length}
+          />
+        )}
       </div>
     </SortableContext>
   );
