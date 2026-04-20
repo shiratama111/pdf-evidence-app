@@ -193,40 +193,6 @@ export function groupSelectedSegments(state: AppState): AppState {
   return { ...state, segments: recolorSegments(newSegments), selectedSegmentIds: [] };
 }
 
-export function addSegmentToGroup(
-  state: AppState,
-  segmentId: string,
-  targetGroupId: string,
-): AppState {
-  const targetGroupSegs = state.segments.filter(segment => segment.groupId === targetGroupId);
-  if (targetGroupSegs.length === 0) return state;
-
-  const seg = state.segments.find(segment => segment.id === segmentId);
-  if (!seg) return state;
-  if (seg.groupId === targetGroupId) return state; // 既に同じグループ
-
-  const firstGroupSeg = targetGroupSegs[0];
-  const groupMainNum = firstGroupSeg.evidenceNumber?.main ?? 1;
-  const newSub = targetGroupSegs.length + 1;
-
-  const updatedSeg: Segment = {
-    ...seg,
-    groupId: targetGroupId,
-    groupName: firstGroupSeg.groupName,
-    mergeInExport: firstGroupSeg.mergeInExport,
-    evidenceNumber: { main: groupMainNum, sub: newSub },
-  };
-
-  // 元の位置から除去してからグループ末尾に挿入
-  const withoutTarget = state.segments.filter(segment => segment.id !== segmentId);
-  const lastInGroupId = targetGroupSegs[targetGroupSegs.length - 1].id;
-  const insertAfterIdx = withoutTarget.findIndex(segment => segment.id === lastInGroupId);
-  const newSegments = [...withoutTarget];
-  newSegments.splice(insertAfterIdx + 1, 0, updatedSeg);
-
-  return { ...state, segments: recolorSegments(newSegments) };
-}
-
 export function reorderGroupChildren(
   state: AppState,
   groupId: string,

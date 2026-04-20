@@ -9,10 +9,9 @@
  * - D&D はドラッグハンドル経由のみ（誤ドラッグ防止）
  * - SegmentList と同じ buildSegmentTree を使ってトップレベル並びを揃える
  */
-import { useDroppable, type DraggableAttributes } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Check, FolderOpen, GripVertical, Plus, Scissors } from 'lucide-react';
+import { Check, FolderOpen, GripVertical, Scissors } from 'lucide-react';
 import type { PdfPage, Segment } from '@/types/pdf';
 import type { TreeItem } from '@/lib/segment-tree';
 import { getTreeItemId } from '@/lib/segment-tree';
@@ -40,15 +39,9 @@ interface SortableSegmentBlockProps {
 
 export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
   const id = getTreeItemId(props.item);
-  const sortableData =
-    props.item.kind === 'group'
-      ? { type: 'group-reorder' as const, groupId: props.item.groupId }
-      : { type: 'segment' as const };
   const {
-    attributes, listeners, setNodeRef: setSortableRef,
-    transform, transition, isDragging, active,
-    isOver, overIndex, activeIndex,
-  } = useSortable({ id, data: sortableData });
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+  } = useSortable({ id, data: { type: 'segment' } });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -56,117 +49,11 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const activeType = active?.data.current?.type;
-  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
-
-  if (props.item.kind === 'single') {
-    const showReorderLine =
-      isOver && activeType !== 'page' && activeType !== 'group-add';
-    return (
-      <div ref={setSortableRef} style={style} {...attributes} className="relative">
-        {showReorderLine && (
-          <div
-            className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
-              insertBelow ? '-bottom-1' : '-top-1'
-            }`}
-            aria-hidden
-          />
-        )}
-        <SingleSegmentBlock {...props} item={props.item} dragListeners={listeners} />
-      </div>
-    );
-  }
-
-  // グループ: 内側に useDroppable（追加用）を設置して、pointerWithin で2モード判別
   return (
-    <GroupSortableWrapper
-      item={props.item}
-      active={active}
-      isOverReorder={isOver}
-      insertBelow={insertBelow}
-      sortableRef={setSortableRef}
-      sortableStyle={style}
-      sortableAttributes={attributes}
-      dragListeners={(listeners ?? {}) as DragListeners}
-      commonProps={props}
-    />
-  );
-}
-
-interface GroupSortableWrapperProps {
-  item: Extract<TreeItem, { kind: 'group' }>;
-  active: ReturnType<typeof useSortable>['active'];
-  isOverReorder: boolean;
-  insertBelow: boolean;
-  sortableRef: (el: HTMLElement | null) => void;
-  sortableStyle: React.CSSProperties;
-  sortableAttributes: DraggableAttributes;
-  dragListeners: DragListeners;
-  commonProps: SortableSegmentBlockProps;
-}
-
-function GroupSortableWrapper({
-  item,
-  active,
-  isOverReorder,
-  insertBelow,
-  sortableRef,
-  sortableStyle,
-  sortableAttributes,
-  dragListeners,
-  commonProps,
-}: GroupSortableWrapperProps) {
-  // 内側 useDroppable を inset 領域に限定して、中央=add / 端=reorder を空間的に分離する
-  const { setNodeRef: setDroppableRef, isOver: isOverAdd } = useDroppable({
-    id: `add:${item.groupId}`,
-    data: { type: 'group-add', groupId: item.groupId },
-  });
-
-  const activeType = active?.data.current?.type;
-  const draggingSegId = activeType === 'segment' ? (active?.id as string) : null;
-  const isAlreadyInGroup =
-    draggingSegId != null && item.segments.some(({ segment }) => segment.id === draggingSegId);
-  const showAddHighlight = isOverAdd && draggingSegId != null && !isAlreadyInGroup;
-
-  // 並び替え青ライン: reorder が over かつ add モードではなく、page / group-add ドラッグでもない
-  const showReorderLine =
-    isOverReorder && !isOverAdd && activeType !== 'page' && activeType !== 'group-add';
-
-  return (
-    <div
-      ref={sortableRef}
-      style={sortableStyle}
-      {...sortableAttributes}
-      className="relative"
-    >
-      {/* 並び替え位置インジケータ（青い横長ライン） */}
-      {showReorderLine && (
-        <div
-          className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
-            insertBelow ? '-bottom-1' : '-top-1'
-          }`}
-          aria-hidden
-        />
-      )}
-
-      {/* inset 領域の add droppable 本体（サイズは絶対配置でレイアウト不動） */}
-      <div
-        ref={setDroppableRef}
-        className="absolute inset-x-4 top-4 bottom-4 z-0 pointer-events-none"
-        aria-hidden
-      />
-
-      {/* 追加モード中のハイライト（absolute overlay） */}
-      {showAddHighlight && (
-        <div className="absolute inset-x-4 top-4 bottom-4 z-10 pointer-events-none ring-4 ring-blue-400/70 rounded-lg bg-blue-50/60 shadow-[0_0_12px_rgba(59,130,246,0.5)] flex items-center justify-center">
-          <div className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-blue-600 bg-white/95 border border-blue-400 rounded select-none">
-            <Plus className="w-3.5 h-3.5" />
-            グループに追加
-          </div>
-        </div>
-      )}
-
-      <GroupSegmentBlock {...commonProps} item={item} dragListeners={dragListeners} />
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {props.item.kind === 'single'
+        ? <SingleSegmentBlock {...props} item={props.item} dragListeners={listeners} />
+        : <GroupSegmentBlock {...props} item={props.item} dragListeners={listeners} />}
     </div>
   );
 }
