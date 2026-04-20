@@ -43,16 +43,33 @@ export function SortablePageCard({
   onDoubleClick,
   children,
 }: SortablePageCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+    active,
+  } = useSortable({
     id: pageId,
     data: { type: 'page', segmentId, pageIndex },
   });
 
+  // ドラッグ元（掴まれている元ページ）は点線枠の薄いプレースホルダー表示にして
+  // ユーザーが「ここから移動中」を認識しやすくする。実体の浮遊プレビューは
+  // ThumbnailGrid.tsx の DragOverlay で描画される。
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0.25 : 1,
   };
+
+  // 挿入先インジケータ: ページ間をドラッグ中にホバー中のページの左側へ青縦ラインを出す。
+  // rectSortingStrategy では over 要素の位置に挿入されるため、常に「このページの前（左側）」に挿入される想定で描画する。
+  const isPageDrag = active?.data.current?.type === 'page';
+  const showInsertLine = isOver && isPageDrag && active?.id !== pageId;
 
   return (
     <div
@@ -62,6 +79,12 @@ export function SortablePageCard({
       {...attributes}
       {...listeners}
     >
+      {showInsertLine && (
+        <div
+          className="absolute -left-[7px] top-1 bottom-1 w-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)]"
+          aria-hidden
+        />
+      )}
       <ThumbnailCard
         page={page}
         globalIndex={globalIndex}

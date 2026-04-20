@@ -3,11 +3,13 @@ import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import {
@@ -16,6 +18,7 @@ import {
   getTreeItemId,
 } from '@/lib/segment-tree';
 import { SortableSegmentBlock } from './SortableSegmentBlock';
+import { ThumbnailCard } from './ThumbnailCard';
 import { RotateCw, RotateCcw, Trash2 } from 'lucide-react';
 
 export function ThumbnailGrid() {
@@ -31,6 +34,8 @@ export function ThumbnailGrid() {
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  // D&D 中のオーバーレイ表示用
+  const [activePageId, setActivePageId] = useState<string | null>(null);
   const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const lastScrolledFocusVersionRef = useRef<number>(focusVersion);
 
@@ -119,7 +124,21 @@ export function ThumbnailGrid() {
     setIsDraggingFile(false);
   }, []);
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const type = event.active.data.current?.type;
+    if (type === 'page') {
+      setActivePageId(event.active.id as string);
+    } else {
+      setActivePageId(null);
+    }
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setActivePageId(null);
+  }, []);
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActivePageId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -203,7 +222,13 @@ export function ThumbnailGrid() {
       )}
 
       {/* Sortable Segments / Groups */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           {tree.map((item) => {
             const itemStartIndex = runningPageIndex;
@@ -235,6 +260,22 @@ export function ThumbnailGrid() {
             );
           })}
         </SortableContext>
+
+        {/* カーソル追従の浮遊プレビュー（ドラッグ中のページのみ） */}
+        <DragOverlay dropAnimation={null}>
+          {activePageId && pages[activePageId] ? (
+            <div className="opacity-90 rotate-2 ring-2 ring-blue-400 rounded-lg shadow-2xl cursor-grabbing">
+              <ThumbnailCard
+                page={pages[activePageId]}
+                globalIndex={0}
+                segmentColor="#3b82f6"
+                isSelected={false}
+                onSelect={() => undefined}
+                onDoubleClick={() => undefined}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </div>
   );
