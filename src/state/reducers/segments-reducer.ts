@@ -2,6 +2,7 @@ import type { AppState } from '@/types/pdf';
 import type { AppAction } from '../actions';
 import { autoAssignEvidenceNumbers } from './reducer-helpers';
 import {
+  addSegmentToGroup,
   bulkReorderSegments,
   createEvidenceGroup,
   deleteSegment,
@@ -113,6 +114,8 @@ export function segmentsReducer(state: AppState, action: AppAction): AppState | 
         action.payload.fromSegmentId,
         action.payload.toSegmentId,
       );
+    case 'GROUP_SEGMENT_ADDED':
+      return addSegmentToGroup(state, action.payload.segmentId, action.payload.groupId);
     default:
       return null;
   }

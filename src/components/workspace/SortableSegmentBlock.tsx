@@ -39,9 +39,20 @@ interface SortableSegmentBlockProps {
 
 export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
   const id = getTreeItemId(props.item);
+  const sortableData =
+    props.item.kind === 'group'
+      ? { type: 'group' as const, groupId: props.item.groupId }
+      : { type: 'segment' as const };
   const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id, data: { type: 'segment' } });
+    attributes, listeners, setNodeRef, transform, transition, isDragging, isOver, active,
+  } = useSortable({ id, data: sortableData });
+
+  // ドラッグ中の active がセグメントで、over が自分（グループ）の場合は追加ターゲットとしてハイライト
+  const isSegmentDraggedOnGroup =
+    props.item.kind === 'group' &&
+    isOver &&
+    active?.data.current?.type === 'segment' &&
+    !isSegmentAlreadyInGroup(active.id as string, props);
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -50,12 +61,29 @@ export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={
+        isSegmentDraggedOnGroup
+          ? 'ring-4 ring-blue-400/70 rounded-lg transition-all shadow-[0_0_12px_rgba(59,130,246,0.5)]'
+          : undefined
+      }
+    >
       {props.item.kind === 'single'
         ? <SingleSegmentBlock {...props} item={props.item} dragListeners={listeners} />
         : <GroupSegmentBlock {...props} item={props.item} dragListeners={listeners} />}
     </div>
   );
+}
+
+function isSegmentAlreadyInGroup(
+  segmentId: string,
+  props: SortableSegmentBlockProps,
+): boolean {
+  if (props.item.kind !== 'group') return false;
+  return props.item.segments.some(({ segment }) => segment.id === segmentId);
 }
 
 // ---------------------------------------------------------------------------

@@ -32,7 +32,7 @@ export type ChildSegmentItemProps = BaseSegmentItemProps;
 export function SortableSegmentItem(props: SegmentItemProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: props.segment.id });
+  } = useSortable({ id: props.segment.id, data: { type: 'segment' } });
 
   const style = {
     transform: CSS.Transform.toString(transform),

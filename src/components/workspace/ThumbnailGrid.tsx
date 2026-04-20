@@ -164,7 +164,22 @@ export function ThumbnailGrid() {
       return;
     }
 
-    // Case 2: セグメント並び替え（既存）
+    // Case 2: セグメントをグループにドロップ → 既存グループへの追加
+    const overType = over.data.current?.type;
+    if (activeType === 'segment' && overType === 'group') {
+      const targetGroupId = over.data.current?.groupId as string | undefined;
+      if (!targetGroupId) return;
+      // 既に同じグループに属しているセグメントは並び替え扱いとする（ドロップ無効）
+      const seg = segments.find((s) => s.id === active.id);
+      if (seg?.groupId === targetGroupId) return;
+      dispatch({
+        type: 'GROUP_SEGMENT_ADDED',
+        payload: { segmentId: active.id as string, groupId: targetGroupId },
+      });
+      return;
+    }
+
+    // Case 3: セグメント並び替え（既存）
     const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
     const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
     if (fromIndex === -1 || toIndex === -1) return;
@@ -177,7 +192,7 @@ export function ThumbnailGrid() {
       type: 'SEGMENTS_BULK_REORDERED',
       payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
     });
-  }, [dispatch, tree]);
+  }, [dispatch, tree, segments]);
 
   // tree 上の累積ページインデックスを計算
   let runningPageIndex = 0;

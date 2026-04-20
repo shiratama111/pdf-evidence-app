@@ -83,6 +83,24 @@ export function SegmentList() {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
+    const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
+
+    // セグメントをグループにドロップ → 既存グループへの追加
+    if (activeType === 'segment' && overType === 'group') {
+      const targetGroupId = over.data.current?.groupId as string | undefined;
+      if (!targetGroupId) return;
+      // 既に同じグループに属しているセグメントは並び替え扱いとする（ドロップ無効）
+      const seg = segments.find((s) => s.id === active.id);
+      if (seg?.groupId === targetGroupId) return;
+      dispatch({
+        type: 'GROUP_SEGMENT_ADDED',
+        payload: { segmentId: active.id as string, groupId: targetGroupId },
+      });
+      return;
+    }
+
+    // 既存: tree上のitemを並び替え
     const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
     const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
     if (fromIndex === -1 || toIndex === -1) return;
@@ -95,7 +113,7 @@ export function SegmentList() {
       type: 'SEGMENTS_BULK_REORDERED',
       payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
     });
-  }, [dispatch, tree]);
+  }, [dispatch, tree, segments]);
 
   const handleRename = useCallback((segmentId: string, name: string) => {
     dispatch({ type: 'SEGMENT_RENAMED', payload: { segmentId, name } });

@@ -41,8 +41,17 @@ export interface GroupFolderProps {
 export function SortableGroupFolder(props: GroupFolderProps) {
   const sortableId = `grp_${props.groupId}`;
   const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: sortableId });
+    attributes, listeners, setNodeRef, transform, transition, isDragging, isOver, active,
+  } = useSortable({
+    id: sortableId,
+    data: { type: 'group', groupId: props.groupId },
+  });
+
+  // グループに対してセグメントがドラッグオーバー中 → 追加ターゲットとして青リング表示
+  const draggingSegId = active?.data.current?.type === 'segment' ? (active.id as string) : null;
+  const isAlreadyInGroup =
+    draggingSegId != null && props.childSegments.some((seg) => seg.id === draggingSegId);
+  const isSegmentDraggedOnGroup = isOver && draggingSegId != null && !isAlreadyInGroup;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -51,7 +60,16 @@ export function SortableGroupFolder(props: GroupFolderProps) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={
+        isSegmentDraggedOnGroup
+          ? 'ring-4 ring-blue-400/70 rounded transition-all shadow-[0_0_12px_rgba(59,130,246,0.5)]'
+          : undefined
+      }
+    >
       <GroupFolder {...props} dragListeners={listeners} />
     </div>
   );
