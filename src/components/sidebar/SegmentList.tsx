@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, type DragEvent } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  DndContext, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -13,6 +13,7 @@ import {
   flattenTreeToSegmentIds,
   getTreeItemId,
 } from '@/lib/segment-tree';
+import { sidebarCollisionDetection } from '@/lib/dnd-utils';
 import { SortableGroupFolder } from './GroupFolder';
 import { SortableSegmentItem } from './SegmentItem';
 
@@ -86,11 +87,11 @@ export function SegmentList() {
     const activeType = active.data.current?.type;
     const overType = over.data.current?.type;
 
-    // セグメントをグループにドロップ → 既存グループへの追加
-    if (activeType === 'segment' && overType === 'group') {
+    // ケース1: セグメントをグループ中央 (add droppable) にドロップ → グループ追加
+    if (activeType === 'segment' && overType === 'group-add') {
       const targetGroupId = over.data.current?.groupId as string | undefined;
       if (!targetGroupId) return;
-      // 既に同じグループに属しているセグメントは並び替え扱いとする（ドロップ無効）
+      // 既に同じグループに属している場合はノーオペレーション
       const seg = segments.find((s) => s.id === active.id);
       if (seg?.groupId === targetGroupId) return;
       dispatch({
@@ -100,7 +101,13 @@ export function SegmentList() {
       return;
     }
 
-    // 既存: tree上のitemを並び替え
+    // 明示的 no-op: group-reorder を group-add にドロップしてもグループ並び替えには使わない
+    // （collision detection 側で除外済みだが、意図を残すため明示）
+    if (activeType === 'group-reorder' && overType === 'group-add') {
+      return;
+    }
+
+    // ケース2: セグメント／グループの並び替え（over が group-reorder / segment の場合）
     const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
     const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
     if (fromIndex === -1 || toIndex === -1) return;
@@ -232,7 +239,11 @@ export function SegmentList() {
       </div>
 
       <div className="flex-1 overflow-y-auto py-1">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={sidebarCollisionDetection}
+          onDragEnd={handleDragEnd}
+        >
           <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
             {tree.map((item) => (
               item.kind === 'group' ? (
