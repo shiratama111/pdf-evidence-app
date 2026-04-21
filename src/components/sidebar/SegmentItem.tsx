@@ -295,7 +295,7 @@ function ChildSegmentItem({
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-2 py-1.5 transition-colors cursor-pointer ${
+      className={`group flex items-center gap-1.5 px-2 py-1.5 transition-colors cursor-pointer ${
         isSelected ? 'bg-blue-50' : isFocused ? 'bg-gray-100' : 'hover:bg-gray-50'
       } ${!isLast ? 'border-b border-gray-100' : ''}`}
       onClick={() => onFocus(segment.id)}
@@ -304,18 +304,18 @@ function ChildSegmentItem({
         type="checkbox"
         checked={isSelected}
         onChange={() => onToggleSelect(segment.id)}
-        className="rounded border-gray-300 w-3 h-3 flex-shrink-0 accent-blue-500"
+        className="rounded border-gray-300 w-3.5 h-3.5 flex-shrink-0 accent-blue-500"
         onClick={(event) => event.stopPropagation()}
       />
 
       <div className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none" {...dragListeners}>
-        <GripVertical className="w-3 h-3 text-gray-300" />
+        <GripVertical className="w-3.5 h-3.5 text-gray-300" />
       </div>
 
-      <FileText className="w-3 h-3 text-gray-300 flex-shrink-0" />
+      <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
 
       {stampEnabled && evidenceLabel && (
-        <span className="inline-flex items-center px-1 py-0.5 text-[9px] font-medium rounded bg-amber-50 text-amber-700 whitespace-nowrap flex-shrink-0">
+        <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-800 whitespace-nowrap flex-shrink-0">
           {evidenceLabel}
         </span>
       )}
@@ -323,7 +323,7 @@ function ChildSegmentItem({
       <div className="flex-1 min-w-0">
         {isEditing ? (
           <input
-            className="w-full text-[11px] border border-blue-300 rounded px-1 py-0.5 outline-none"
+            className="w-full text-xs border border-blue-300 rounded px-1 py-0.5 outline-none"
             value={editValue}
             onChange={(event) => setEditValue(event.target.value)}
             onBlur={handleSubmit}
@@ -332,7 +332,7 @@ function ChildSegmentItem({
           />
         ) : (
           <div
-            className="text-[11px] text-gray-600 truncate cursor-text"
+            className="text-xs text-gray-700 truncate cursor-text"
             onDoubleClick={(event) => {
               event.stopPropagation();
               handleStartEdit();
@@ -342,19 +342,18 @@ function ChildSegmentItem({
             {segment.name}
           </div>
         )}
+        <div className="text-[10px] text-gray-400">{pageCount}p</div>
       </div>
-
-      <span className="text-[9px] text-gray-400 flex-shrink-0">{pageCount}p</span>
 
       <button
         onClick={(event) => {
           event.stopPropagation();
           onDelete(segment.id);
         }}
-        className="p-0.5 rounded hover:bg-red-50 text-red-300 opacity-0 group-hover:opacity-100"
+        className="p-0.5 rounded hover:bg-red-50 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
         title="削除"
       >
-        <Trash2 className="w-2.5 h-2.5" />
+        <Trash2 className="w-3 h-3" />
       </button>
     </div>
   );
