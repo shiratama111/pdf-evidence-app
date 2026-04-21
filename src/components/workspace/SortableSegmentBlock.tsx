@@ -9,9 +9,15 @@
  * - D&D はドラッグハンドル経由のみ（誤ドラッグ防止）
  * - SegmentList と同じ buildSegmentTree を使ってトップレベル並びを揃える
  */
-import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { useDroppable, type DraggableAttributes } from '@dnd-kit/core';
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Check, FolderOpen, GripVertical, Scissors } from 'lucide-react';
+import { Check, FolderOpen, GripVertical, Plus, Scissors } from 'lucide-react';
 import type { PdfPage, Segment } from '@/types/pdf';
 import type { TreeItem } from '@/lib/segment-tree';
 import { getTreeItemId } from '@/lib/segment-tree';
@@ -39,21 +45,139 @@ interface SortableSegmentBlockProps {
 
 export function SortableSegmentBlock(props: SortableSegmentBlockProps) {
   const id = getTreeItemId(props.item);
+  const sortableData =
+    props.item.kind === 'group'
+      ? { type: 'group-reorder' as const, groupId: props.item.groupId }
+      : { type: 'segment' as const };
   const {
-    attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id, data: { type: 'segment' } });
+    attributes, listeners, setNodeRef: setSortableRef,
+    transform, transition, isDragging, active,
+    isOver, overIndex, activeIndex,
+  } = useSortable({ id, data: sortableData });
 
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）。
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
+  const activeType = active?.data.current?.type;
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
+  if (props.item.kind === 'single') {
+    const showReorderLine =
+      isOver && activeType !== 'page' && activeType !== 'group-add';
+    return (
+      <div ref={setSortableRef} style={style} {...attributes} className="relative">
+        {showReorderLine && (
+          <div
+            className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+              insertBelow ? '-bottom-1' : '-top-1'
+            }`}
+            aria-hidden
+          />
+        )}
+        <SingleSegmentBlock {...props} item={props.item} dragListeners={listeners} />
+      </div>
+    );
+  }
+
+  // グループ: 内側に useDroppable（追加用）を設置して、pointerWithin で2モード判別
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      {props.item.kind === 'single'
-        ? <SingleSegmentBlock {...props} item={props.item} dragListeners={listeners} />
-        : <GroupSegmentBlock {...props} item={props.item} dragListeners={listeners} />}
+    <GroupSortableWrapper
+      item={props.item}
+      active={active}
+      isOverReorder={isOver}
+      insertBelow={insertBelow}
+      sortableRef={setSortableRef}
+      sortableStyle={style}
+      sortableAttributes={attributes}
+      dragListeners={(listeners ?? {}) as DragListeners}
+      commonProps={props}
+    />
+  );
+}
+
+interface GroupSortableWrapperProps {
+  item: Extract<TreeItem, { kind: 'group' }>;
+  active: ReturnType<typeof useSortable>['active'];
+  isOverReorder: boolean;
+  insertBelow: boolean;
+  sortableRef: (el: HTMLElement | null) => void;
+  sortableStyle: React.CSSProperties;
+  sortableAttributes: DraggableAttributes;
+  dragListeners: DragListeners;
+  commonProps: SortableSegmentBlockProps;
+}
+
+function GroupSortableWrapper({
+  item,
+  active,
+  isOverReorder,
+  insertBelow,
+  sortableRef,
+  sortableStyle,
+  sortableAttributes,
+  dragListeners,
+  commonProps,
+}: GroupSortableWrapperProps) {
+  // 内側 useDroppable を inset 領域に限定して、中央=add / 端=reorder を空間的に分離する
+  const { setNodeRef: setDroppableRef, isOver: isOverAdd } = useDroppable({
+    id: `add:${item.groupId}`,
+    data: { type: 'group-add', groupId: item.groupId },
+  });
+
+  const activeType = active?.data.current?.type;
+  // group-child もグループ追加対象として扱う（別グループへの移動を可能にする）
+  const draggingSegId =
+    activeType === 'segment' || activeType === 'group-child'
+      ? (active?.id as string)
+      : null;
+  const isAlreadyInGroup =
+    draggingSegId != null && item.segments.some(({ segment }) => segment.id === draggingSegId);
+  const showAddHighlight = isOverAdd && draggingSegId != null && !isAlreadyInGroup;
+
+  // 並び替え青ライン: reorder が over かつ add モードではなく、page / group-add ドラッグでもない
+  // group-child でも表示する（ドロップ時にグループ離脱 + トップレベル配置）
+  const showReorderLine =
+    isOverReorder && !isOverAdd && activeType !== 'page' && activeType !== 'group-add';
+
+  return (
+    <div
+      ref={sortableRef}
+      style={sortableStyle}
+      {...sortableAttributes}
+      className="relative"
+    >
+      {/* 並び替え位置インジケータ（青い横長ライン） */}
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-1' : '-top-1'
+          }`}
+          aria-hidden
+        />
+      )}
+
+      {/* inset 領域の add droppable 本体（サイズは絶対配置でレイアウト不動） */}
+      <div
+        ref={setDroppableRef}
+        className="absolute inset-x-4 top-4 bottom-4 z-0 pointer-events-none"
+        aria-hidden
+      />
+
+      {/* 追加モード中のハイライト（absolute overlay） */}
+      {showAddHighlight && (
+        <div className="absolute inset-x-4 top-4 bottom-4 z-10 pointer-events-none ring-4 ring-blue-400/70 rounded-lg bg-blue-50/60 shadow-[0_0_12px_rgba(59,130,246,0.5)] flex items-center justify-center">
+          <div className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-blue-600 bg-white/95 border border-blue-400 rounded select-none">
+            <Plus className="w-3.5 h-3.5" />
+            グループに追加
+          </div>
+        </div>
+      )}
+
+      <GroupSegmentBlock {...commonProps} item={item} dragListeners={dragListeners} />
     </div>
   );
 }
@@ -151,6 +275,8 @@ function GroupSegmentBlock({
   const defaultLabel = `甲${item.mainNum}号証（${item.segments.length}件）`;
   const folderLabel = groupName ?? defaultLabel;
 
+  const childIds = item.segments.map(({ segment }) => segment.id);
+
   // グループ内の累積ページインデックスを計算
   let cursor = startIndex;
 
@@ -160,7 +286,7 @@ function GroupSegmentBlock({
         isGroupFocused ? 'ring-2 ring-indigo-300' : ''
       }`}
     >
-      {/* グループヘッダー（ドラッグハンドル付き） */}
+      {/* グループヘッダー（ドラッグハンドル付き、グループ一体移動） */}
       <div className="flex items-center gap-2 mb-3 px-1">
         <div
           className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 rounded hover:bg-amber-100 text-gray-400 hover:text-gray-600"
@@ -178,45 +304,133 @@ function GroupSegmentBlock({
         </span>
       </div>
 
-      {/* 枝番セグメント縦並び（個別D&D不可） */}
-      <div className="space-y-4">
-        {item.segments.map(({ segment }) => {
-          const segStart = cursor;
-          cursor += segment.pageIds.length;
-          const isSegSelected = selectedSegmentIds.includes(segment.id);
-          const isSegFocused = focusedSegmentId === segment.id;
+      {/* 枝番セグメント縦並び: group-child として個別D&D対応（取り出し/並び替え両対応） */}
+      <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
+        <div className="space-y-4">
+          {item.segments.map(({ segment }) => {
+            const segStart = cursor;
+            cursor += segment.pageIds.length;
+            const isSegSelected = selectedSegmentIds.includes(segment.id);
+            const isSegFocused = focusedSegmentId === segment.id;
 
-          return (
-            <div
-              key={segment.id}
-              ref={(el) => registerRef(segment.id, el)}
-              className={`rounded-lg transition-all ${
-                isSegSelected
-                  ? 'bg-blue-50 ring-2 ring-blue-300 p-2'
-                  : isSegFocused
-                    ? 'ring-2 ring-indigo-300 bg-indigo-50/40 p-2'
-                    : ''
-              }`}
-            >
-              <SegmentHeader
+            return (
+              <SortableChildSegmentOnWorkspace
+                key={segment.id}
                 segment={segment}
-                isSelected={isSegSelected}
-                isFocused={isSegFocused}
-                onToggle={() => onSegmentToggle(segment.id)}
-              />
-              <SegmentPageGrid
-                segment={segment}
-                pages={pages}
+                groupId={item.groupId}
                 startIndex={segStart}
+                pages={pages}
                 selectedPageIds={selectedPageIds}
                 isDraggingPage={isDraggingPage}
+                isSelected={isSegSelected}
+                isFocused={isSegFocused}
+                registerRef={registerRef}
                 onPageSelect={onPageSelect}
                 onPageDoubleClick={onPageDoubleClick}
+                onSegmentToggle={onSegmentToggle}
                 onSplit={onSplit}
               />
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// グループ内の枝番セグメント用の SortableItem（中央PDF側）
+// data.type = 'group-child' で、親グループ外にドロップするとグループから離脱する
+// ---------------------------------------------------------------------------
+
+interface SortableChildSegmentOnWorkspaceProps {
+  segment: import('@/types/pdf').Segment;
+  groupId: string;
+  startIndex: number;
+  pages: Record<string, PdfPage>;
+  selectedPageIds: string[];
+  isDraggingPage: boolean;
+  isSelected: boolean;
+  isFocused: boolean;
+  registerRef: (id: string, el: HTMLDivElement | null) => void;
+  onPageSelect: (pageId: string, additive: boolean) => void;
+  onPageDoubleClick: (pageId: string) => void;
+  onSegmentToggle: (segmentId: string) => void;
+  onSplit: (segmentId: string, afterPageId: string) => void;
+}
+
+function SortableChildSegmentOnWorkspace({
+  segment,
+  groupId,
+  startIndex,
+  pages,
+  selectedPageIds,
+  isDraggingPage,
+  isSelected,
+  isFocused,
+  registerRef,
+  onPageSelect,
+  onPageDoubleClick,
+  onSegmentToggle,
+  onSplit,
+}: SortableChildSegmentOnWorkspaceProps) {
+  const {
+    attributes, listeners, setNodeRef, transform, transition, isDragging,
+    isOver, overIndex, activeIndex, active,
+  } = useSortable({
+    id: segment.id,
+    data: { type: 'group-child', groupId },
+  });
+
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0 : 1,
+  };
+
+  // group-child 同士の時だけ青ラインを出す（他タイプでは非表示）
+  const activeType = active?.data.current?.type;
+  const showReorderLine = isOver && activeType === 'group-child';
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} className="relative">
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-1' : '-top-1'
+          }`}
+          aria-hidden
+        />
+      )}
+      <div
+        ref={(el) => registerRef(segment.id, el)}
+        className={`rounded-lg transition-all ${
+          isSelected
+            ? 'bg-blue-50 ring-2 ring-blue-300 p-2'
+            : isFocused
+              ? 'ring-2 ring-indigo-300 bg-indigo-50/40 p-2'
+              : ''
+        }`}
+      >
+        <SegmentHeader
+          segment={segment}
+          isSelected={isSelected}
+          isFocused={isFocused}
+          onToggle={() => onSegmentToggle(segment.id)}
+          dragListeners={listeners}
+        />
+        <SegmentPageGrid
+          segment={segment}
+          pages={pages}
+          startIndex={startIndex}
+          selectedPageIds={selectedPageIds}
+          isDraggingPage={isDraggingPage}
+          onPageSelect={onPageSelect}
+          onPageDoubleClick={onPageDoubleClick}
+          onSplit={onSplit}
+        />
       </div>
     </div>
   );

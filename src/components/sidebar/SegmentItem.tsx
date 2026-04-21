@@ -27,21 +27,41 @@ export interface SegmentItemProps extends BaseSegmentItemProps {
   isInGroup: boolean;
 }
 
-export type ChildSegmentItemProps = BaseSegmentItemProps;
+export interface ChildSegmentItemProps extends BaseSegmentItemProps {
+  /** 親グループID。D&Dの data.type = 'group-child' の groupId として使う */
+  groupId: string;
+}
 
 export function SortableSegmentItem(props: SegmentItemProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: props.segment.id });
+    isOver, overIndex, activeIndex, active,
+  } = useSortable({ id: props.segment.id, data: { type: 'segment' } });
 
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）。
+  // 空間は保持されるので他のアイテムが詰まり過ぎず、
+  // @dnd-kit の transition と組み合わさって滑らかに動く。
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
+  const activeType = active?.data.current?.type;
+  const showReorderLine =
+    isOver && activeType !== 'page' && activeType !== 'group-add';
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style} {...attributes} className="relative">
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[3px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_6px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-0.5' : '-top-0.5'
+          }`}
+          aria-hidden
+        />
+      )}
       <SegmentRow {...props} dragListeners={listeners} />
     </div>
   );
@@ -50,16 +70,34 @@ export function SortableSegmentItem(props: SegmentItemProps) {
 export function SortableChildSegmentItem(props: ChildSegmentItemProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
-  } = useSortable({ id: props.segment.id });
+    isOver, overIndex, activeIndex, active,
+  } = useSortable({
+    id: props.segment.id,
+    data: { type: 'group-child', groupId: props.groupId },
+  });
 
+  // ドラッグ中は完全非表示（DragOverlay の浮遊プレビューだけを見せる）。
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0 : 1,
   };
 
+  // 他のgroup-childを掴んでいる時だけ青ラインを出す（他タイプのドラッグでは出さない）
+  const activeType = active?.data.current?.type;
+  const showReorderLine = isOver && activeType === 'group-child';
+  const insertBelow = activeIndex !== -1 && activeIndex < overIndex;
+
   return (
-    <div ref={setNodeRef} style={style} {...attributes}>
+    <div ref={setNodeRef} style={style} {...attributes} className="relative">
+      {showReorderLine && (
+        <div
+          className={`absolute left-0 right-0 h-[2px] bg-blue-500 rounded-full z-20 pointer-events-none shadow-[0_0_4px_rgba(59,130,246,0.6)] ${
+            insertBelow ? '-bottom-[1px]' : '-top-[1px]'
+          }`}
+          aria-hidden
+        />
+      )}
       <ChildSegmentItem {...props} dragListeners={listeners} />
     </div>
   );
@@ -257,7 +295,7 @@ function ChildSegmentItem({
 
   return (
     <div
-      className={`flex items-center gap-1.5 px-2 py-1.5 transition-colors cursor-pointer ${
+      className={`group flex items-center gap-1.5 px-2 py-1.5 transition-colors cursor-pointer ${
         isSelected ? 'bg-blue-50' : isFocused ? 'bg-gray-100' : 'hover:bg-gray-50'
       } ${!isLast ? 'border-b border-gray-100' : ''}`}
       onClick={() => onFocus(segment.id)}
@@ -266,18 +304,18 @@ function ChildSegmentItem({
         type="checkbox"
         checked={isSelected}
         onChange={() => onToggleSelect(segment.id)}
-        className="rounded border-gray-300 w-3 h-3 flex-shrink-0 accent-blue-500"
+        className="rounded border-gray-300 w-3.5 h-3.5 flex-shrink-0 accent-blue-500"
         onClick={(event) => event.stopPropagation()}
       />
 
       <div className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none" {...dragListeners}>
-        <GripVertical className="w-3 h-3 text-gray-300" />
+        <GripVertical className="w-3.5 h-3.5 text-gray-300" />
       </div>
 
-      <FileText className="w-3 h-3 text-gray-300 flex-shrink-0" />
+      <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
 
       {stampEnabled && evidenceLabel && (
-        <span className="inline-flex items-center px-1 py-0.5 text-[9px] font-medium rounded bg-amber-50 text-amber-700 whitespace-nowrap flex-shrink-0">
+        <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-amber-100 text-amber-800 whitespace-nowrap flex-shrink-0">
           {evidenceLabel}
         </span>
       )}
@@ -285,7 +323,7 @@ function ChildSegmentItem({
       <div className="flex-1 min-w-0">
         {isEditing ? (
           <input
-            className="w-full text-[11px] border border-blue-300 rounded px-1 py-0.5 outline-none"
+            className="w-full text-xs border border-blue-300 rounded px-1 py-0.5 outline-none"
             value={editValue}
             onChange={(event) => setEditValue(event.target.value)}
             onBlur={handleSubmit}
@@ -294,7 +332,7 @@ function ChildSegmentItem({
           />
         ) : (
           <div
-            className="text-[11px] text-gray-600 truncate cursor-text"
+            className="text-xs text-gray-700 truncate cursor-text"
             onDoubleClick={(event) => {
               event.stopPropagation();
               handleStartEdit();
@@ -304,19 +342,18 @@ function ChildSegmentItem({
             {segment.name}
           </div>
         )}
+        <div className="text-[10px] text-gray-400">{pageCount}p</div>
       </div>
-
-      <span className="text-[9px] text-gray-400 flex-shrink-0">{pageCount}p</span>
 
       <button
         onClick={(event) => {
           event.stopPropagation();
           onDelete(segment.id);
         }}
-        className="p-0.5 rounded hover:bg-red-50 text-red-300 opacity-0 group-hover:opacity-100"
+        className="p-0.5 rounded hover:bg-red-50 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
         title="削除"
       >
-        <Trash2 className="w-2.5 h-2.5" />
+        <Trash2 className="w-3 h-3" />
       </button>
     </div>
   );

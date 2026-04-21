@@ -193,6 +193,97 @@ export function groupSelectedSegments(state: AppState): AppState {
   return { ...state, segments: recolorSegments(newSegments), selectedSegmentIds: [] };
 }
 
+export function addSegmentToGroup(
+  state: AppState,
+  segmentId: string,
+  targetGroupId: string,
+): AppState {
+  const targetGroupSegs = state.segments.filter(segment => segment.groupId === targetGroupId);
+  if (targetGroupSegs.length === 0) return state;
+
+  const seg = state.segments.find(segment => segment.id === segmentId);
+  if (!seg) return state;
+  if (seg.groupId === targetGroupId) return state; // 既に同じグループ
+
+  const firstGroupSeg = targetGroupSegs[0];
+  const groupMainNum = firstGroupSeg.evidenceNumber?.main ?? 1;
+  const newSub = targetGroupSegs.length + 1;
+
+  const updatedSeg: Segment = {
+    ...seg,
+    groupId: targetGroupId,
+    groupName: firstGroupSeg.groupName,
+    mergeInExport: firstGroupSeg.mergeInExport,
+    evidenceNumber: { main: groupMainNum, sub: newSub },
+  };
+
+  // 元の位置から除去してからグループ末尾に挿入
+  const withoutTarget = state.segments.filter(segment => segment.id !== segmentId);
+  const lastInGroupId = targetGroupSegs[targetGroupSegs.length - 1].id;
+  const insertAfterIdx = withoutTarget.findIndex(segment => segment.id === lastInGroupId);
+  const newSegments = [...withoutTarget];
+  newSegments.splice(insertAfterIdx + 1, 0, updatedSeg);
+
+  return { ...state, segments: recolorSegments(newSegments) };
+}
+
+/**
+ * グループから1つのセグメントを取り出してトップレベル配置に戻す。
+ *
+ * - `segmentId` が所属するグループは、残存セグメントの sub 番号を再採番
+ * - 離脱セグメント自身は groupId / groupName / mergeInExport / evidenceNumber.sub をクリア
+ *   （main は残して、トップレベルセグメントの採番ロジックと整合させる）
+ * - `targetIndex` は、除去前の segments 配列を基準とした挿入位置
+ *   （UIから見た tree/segment 配列上のドロップ先。除去後の位置補正はここで吸収する）
+ */
+export function ejectSegmentFromGroup(
+  state: AppState,
+  segmentId: string,
+  targetIndex: number,
+): AppState {
+  const segIdx = state.segments.findIndex(segment => segment.id === segmentId);
+  if (segIdx === -1) return state;
+
+  const seg = state.segments[segIdx];
+  if (!seg.groupId) return state; // グループに所属していない
+
+  const groupId = seg.groupId;
+
+  // 離脱セグメント本体: グループ属性をクリア（main は維持して再採番ロジックに委ねる）
+  const ejected: Segment = {
+    ...seg,
+    groupId: null,
+    groupName: undefined,
+    mergeInExport: undefined,
+    evidenceNumber: seg.evidenceNumber
+      ? { main: seg.evidenceNumber.main, sub: null }
+      : null,
+  };
+
+  // 元の配列から対象を除去
+  const withoutTarget = state.segments.filter(segment => segment.id !== segmentId);
+
+  // 除去前の targetIndex を、除去後の配列での挿入位置に補正
+  const adjustedIndex = targetIndex > segIdx ? targetIndex - 1 : targetIndex;
+  const clampedIndex = Math.max(0, Math.min(adjustedIndex, withoutTarget.length));
+
+  // 指定位置に挿入
+  const inserted = [...withoutTarget];
+  inserted.splice(clampedIndex, 0, ejected);
+
+  // 残存グループ内の sub 番号を再採番（残り1件ならグループを解体する方針もあるが、
+  // ここでは 1件残しでも group として扱う: groupId は維持・sub=1 に統一）
+  const remainingGroupSegs = inserted.filter(segment => segment.groupId === groupId);
+  const renumbered = inserted.map(segment => {
+    if (segment.groupId !== groupId) return segment;
+    const subIdx = remainingGroupSegs.findIndex(other => other.id === segment.id);
+    const mainNum = segment.evidenceNumber?.main ?? 1;
+    return { ...segment, evidenceNumber: { main: mainNum, sub: subIdx + 1 } };
+  });
+
+  return { ...state, segments: recolorSegments(renumbered) };
+}
+
 export function reorderGroupChildren(
   state: AppState,
   groupId: string,

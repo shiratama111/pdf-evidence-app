@@ -2,8 +2,8 @@ import { useState, useCallback, useMemo, type DragEvent } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
-  type DragEndEvent,
+  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Group, Hash, Layers } from 'lucide-react';
@@ -13,6 +13,9 @@ import {
   flattenTreeToSegmentIds,
   getTreeItemId,
 } from '@/lib/segment-tree';
+import { sidebarCollisionDetection } from '@/lib/dnd-utils';
+import { SegmentDragPreview } from '@/components/common/SegmentDragPreview';
+import { ListEndDropZone } from '@/components/common/ListEndDropZone';
 import { SortableGroupFolder } from './GroupFolder';
 import { SortableSegmentItem } from './SegmentItem';
 
@@ -29,6 +32,11 @@ export function SegmentList() {
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // D&D 中のオーバーレイ表示用（segment/group-reorder/group-child すべて共通）
+  const [activeDrag, setActiveDrag] = useState<{
+    id: string;
+    type: 'segment' | 'group-reorder' | 'group-child';
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -79,23 +87,141 @@ export function SegmentList() {
     });
   }, []);
 
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const type = event.active.data.current?.type as string | undefined;
+    if (type === 'segment' || type === 'group-reorder' || type === 'group-child') {
+      setActiveDrag({ id: event.active.id as string, type });
+    } else {
+      setActiveDrag(null);
+    }
+  }, []);
+
+  const handleDragCancel = useCallback(() => {
+    setActiveDrag(null);
+  }, []);
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    setActiveDrag(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
-    const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
-    if (fromIndex === -1 || toIndex === -1) return;
+    const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
 
-    const newTree = [...tree];
-    const [moved] = newTree.splice(fromIndex, 1);
-    newTree.splice(toIndex, 0, moved);
+    // ケース1: セグメント or グループ子をグループ中央（add droppable）にドロップ → グループに追加
+    if ((activeType === 'segment' || activeType === 'group-child') && overType === 'group-add') {
+      const targetGroupId = over.data.current?.groupId as string | undefined;
+      if (!targetGroupId) return;
+      const seg = segments.find((s) => s.id === active.id);
+      if (seg?.groupId === targetGroupId) return; // 既に同じグループ
+      dispatch({
+        type: 'GROUP_SEGMENT_ADDED',
+        payload: { segmentId: active.id as string, groupId: targetGroupId },
+      });
+      return;
+    }
 
-    dispatch({
-      type: 'SEGMENTS_BULK_REORDERED',
-      payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
-    });
-  }, [dispatch, tree]);
+    // 明示的 no-op: group-reorder を group-add にドロップしてもグループ並び替えには使わない
+    if (activeType === 'group-reorder' && overType === 'group-add') {
+      return;
+    }
+
+    // ケース1.5: リスト末尾ドロップゾーン（group-child なら離脱+末尾、他タイプは末尾に移動）
+    if (overType === 'list-end') {
+      if (activeType === 'group-child') {
+        dispatch({
+          type: 'SEGMENT_EJECTED_FROM_GROUP',
+          payload: { segmentId: active.id as string, targetIndex: segments.length },
+        });
+        return;
+      }
+      if (activeType === 'segment' || activeType === 'group-reorder') {
+        const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
+        if (fromIndex === -1 || fromIndex === tree.length - 1) return;
+        const newTree = [...tree];
+        const [moved] = newTree.splice(fromIndex, 1);
+        newTree.push(moved);
+        dispatch({
+          type: 'SEGMENTS_BULK_REORDERED',
+          payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
+        });
+        return;
+      }
+    }
+
+    // ケース2: group-child 同士のドロップ
+    if (activeType === 'group-child' && overType === 'group-child') {
+      const activeGroupId = active.data.current?.groupId as string | undefined;
+      const overGroupId = over.data.current?.groupId as string | undefined;
+      if (!activeGroupId || !overGroupId) return;
+
+      if (activeGroupId === overGroupId) {
+        // 同じグループ内 → 枝番並び替え
+        dispatch({
+          type: 'GROUP_CHILD_REORDERED',
+          payload: {
+            groupId: activeGroupId,
+            fromSegmentId: active.id as string,
+            toSegmentId: over.id as string,
+          },
+        });
+      } else {
+        // 別グループの子 → そのグループに移動（末尾追加）
+        dispatch({
+          type: 'GROUP_SEGMENT_ADDED',
+          payload: { segmentId: active.id as string, groupId: overGroupId },
+        });
+      }
+      return;
+    }
+
+    // ケース3: group-child → segment / group-reorder（トップレベル）にドロップ → グループから離脱
+    if (activeType === 'group-child' && (overType === 'segment' || overType === 'group-reorder')) {
+      const overTreeIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
+      if (overTreeIndex === -1) return;
+
+      // 挿入位置（state.segments 配列ベース）を計算
+      // カーソル位置で over の前後どちらに挿入するかを判定
+      const activeRect = active.rect.current?.translated;
+      const overRect = over.rect;
+      const insertBelow = activeRect && overRect
+        ? activeRect.top + activeRect.height / 2 > overRect.top + overRect.height / 2
+        : false;
+
+      const overItem = tree[overTreeIndex];
+      let targetIndex: number;
+      if (overItem.kind === 'single') {
+        targetIndex = overItem.originalIndex + (insertBelow ? 1 : 0);
+      } else {
+        // group: 前に挿入 = 先頭 / 後ろに挿入 = 末尾の次
+        const first = overItem.segments[0].originalIndex;
+        const last = overItem.segments[overItem.segments.length - 1].originalIndex;
+        targetIndex = insertBelow ? last + 1 : first;
+      }
+
+      dispatch({
+        type: 'SEGMENT_EJECTED_FROM_GROUP',
+        payload: { segmentId: active.id as string, targetIndex },
+      });
+      return;
+    }
+
+    // ケース4: セグメント／グループの並び替え（既存挙動）
+    if (activeType === 'segment' || activeType === 'group-reorder') {
+      const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
+      const toIndex = tree.findIndex((item) => getTreeItemId(item) === over.id);
+      if (fromIndex === -1 || toIndex === -1) return;
+
+      const newTree = [...tree];
+      const [moved] = newTree.splice(fromIndex, 1);
+      newTree.splice(toIndex, 0, moved);
+
+      dispatch({
+        type: 'SEGMENTS_BULK_REORDERED',
+        payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
+      });
+    }
+  }, [dispatch, tree, segments]);
 
   const handleRename = useCallback((segmentId: string, name: string) => {
     dispatch({ type: 'SEGMENT_RENAMED', payload: { segmentId, name } });
@@ -132,17 +258,6 @@ export function SegmentList() {
 
   const handleUngroup = useCallback((groupId: string) => {
     dispatch({ type: 'SEGMENTS_UNGROUPED', payload: { groupId } });
-  }, [dispatch]);
-
-  const handleChildReorder = useCallback((
-    groupId: string,
-    fromSegmentId: string,
-    toSegmentId: string,
-  ) => {
-    dispatch({
-      type: 'GROUP_CHILD_REORDERED',
-      payload: { groupId, fromSegmentId, toSegmentId },
-    });
   }, [dispatch]);
 
   const handleToggleMerge = useCallback((groupId: string, mergeInExport: boolean) => {
@@ -214,7 +329,13 @@ export function SegmentList() {
       </div>
 
       <div className="flex-1 overflow-y-auto py-1">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={sidebarCollisionDetection}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
           <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
             {tree.map((item) => (
               item.kind === 'group' ? (
@@ -232,7 +353,6 @@ export function SegmentList() {
                   onToggleMerge={handleToggleMerge}
                   onGroupRename={handleGroupRename}
                   onGroupFocus={handleGroupFocus}
-                  onChildReorder={handleChildReorder}
                   onRename={handleRename}
                   onDelete={handleDelete}
                   stampEnabled={stampEnabled}
@@ -264,6 +384,20 @@ export function SegmentList() {
               )
             ))}
           </SortableContext>
+
+          {/* 末尾ドロップゾーン: リスト最下部にドロップしても確実にヒットさせる */}
+          <ListEndDropZone id="sidebar-list-end" activeType={activeDrag?.type} />
+
+          {/* カーソル追従の浮遊プレビュー（segment/group-reorder 両対応） */}
+          <DragOverlay dropAnimation={null}>
+            {activeDrag ? (
+              <SegmentDragPreview
+                activeId={activeDrag.id}
+                activeType={activeDrag.type}
+                segments={segments}
+              />
+            ) : null}
+          </DragOverlay>
         </DndContext>
       </div>
     </div>
