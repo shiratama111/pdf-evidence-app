@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, type DragEvent } from 'react';
+import { useState, useCallback, useMemo, useRef, type DragEvent } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import {
@@ -32,6 +32,36 @@ export function SegmentList() {
   const { loadFiles } = usePdfLoader();
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // パネル幅（右端をドラッグでリサイズ可能、プレビューパネルと同じ実装パターン）
+  const [panelWidth, setPanelWidth] = useState(256); // 旧 w-64 = 256px が初期値
+  const isResizing = useRef(false);
+
+  const handleResizeStart = useCallback((event: React.MouseEvent) => {
+    event.preventDefault();
+    isResizing.current = true;
+    const startX = event.clientX;
+    const startWidth = panelWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const delta = ev.clientX - startX; // 右にドラッグ = 幅が大きくなる
+      const newWidth = Math.max(200, Math.min(600, startWidth + delta));
+      setPanelWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      isResizing.current = false;
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [panelWidth]);
   // D&D 中のオーバーレイ表示用（segment/group-reorder/group-child すべて共通）
   const [activeDrag, setActiveDrag] = useState<{
     id: string;
@@ -275,7 +305,8 @@ export function SegmentList() {
 
   return (
     <div
-      className={`w-64 flex-shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col h-full transition-colors ${isDraggingFile ? 'bg-blue-50' : ''}`}
+      className={`relative flex-shrink-0 bg-gray-50 flex flex-col h-full transition-colors ${isDraggingFile ? 'bg-blue-50' : ''}`}
+      style={{ width: panelWidth }}
       onDrop={handleFileDrop}
       onDragOver={handleFileDragOver}
       onDragLeave={handleFileDragLeave}
@@ -399,6 +430,15 @@ export function SegmentList() {
             ) : null}
           </DragOverlay>
         </DndContext>
+      </div>
+
+      {/* リサイズハンドル（右端、プレビューパネルと同じパターン） */}
+      <div
+        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-400 active:bg-blue-500 transition-colors z-10 group"
+        onMouseDown={handleResizeStart}
+        title="ドラッグで幅を変更"
+      >
+        <div className="absolute right-0 top-0 bottom-0 w-px bg-gray-200 group-hover:bg-blue-400" />
       </div>
     </div>
   );
