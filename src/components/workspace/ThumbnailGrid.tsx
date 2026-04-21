@@ -20,6 +20,7 @@ import { workspaceCollisionDetection } from '@/lib/dnd-utils';
 import { SortableSegmentBlock } from './SortableSegmentBlock';
 import { ThumbnailCard } from './ThumbnailCard';
 import { SegmentDragPreview } from '@/components/common/SegmentDragPreview';
+import { ListEndDropZone } from '@/components/common/ListEndDropZone';
 import { RotateCw, RotateCcw, Trash2 } from 'lucide-react';
 
 export function ThumbnailGrid() {
@@ -187,6 +188,29 @@ export function ThumbnailGrid() {
       return;
     }
 
+    // Case 2.5: リスト末尾ドロップゾーン
+    if (overType === 'list-end') {
+      if (activeType === 'group-child') {
+        dispatch({
+          type: 'SEGMENT_EJECTED_FROM_GROUP',
+          payload: { segmentId: active.id as string, targetIndex: segments.length },
+        });
+        return;
+      }
+      if (activeType === 'segment' || activeType === 'group-reorder') {
+        const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
+        if (fromIndex === -1 || fromIndex === tree.length - 1) return;
+        const newTree = [...tree];
+        const [moved] = newTree.splice(fromIndex, 1);
+        newTree.push(moved);
+        dispatch({
+          type: 'SEGMENTS_BULK_REORDERED',
+          payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
+        });
+        return;
+      }
+    }
+
     // Case 3: group-child 同士のドロップ
     if (activeType === 'group-child' && overType === 'group-child') {
       const activeGroupId = active.data.current?.groupId as string | undefined;
@@ -341,6 +365,9 @@ export function ThumbnailGrid() {
             );
           })}
         </SortableContext>
+
+        {/* 末尾ドロップゾーン: リスト最下部にドロップしても確実にヒットさせる */}
+        <ListEndDropZone id="workspace-list-end" activeType={activeDrag?.type} />
 
         {/* カーソル追従の浮遊プレビュー（page/segment/group-reorder すべて対応） */}
         <DragOverlay dropAnimation={null}>

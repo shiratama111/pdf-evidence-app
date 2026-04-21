@@ -49,12 +49,17 @@ export const workspaceCollisionDetection: CollisionDetection = (args) => {
     activeType === 'page'
       ? filterByType(args, (t) => t === 'page')
       : activeType === 'group-reorder'
-        ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder')
+        ? filterByType(args, (t) => (
+          t === 'segment' || t === 'group-reorder' || t === 'list-end'
+        ))
         : activeType === 'segment'
-          ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder' || t === 'group-add')
+          ? filterByType(args, (t) => (
+            t === 'segment' || t === 'group-reorder' || t === 'group-add' || t === 'list-end'
+          ))
           : activeType === 'group-child'
             ? filterByType(args, (t) => (
-              t === 'segment' || t === 'group-reorder' || t === 'group-add' || t === 'group-child'
+              t === 'segment' || t === 'group-reorder' || t === 'group-add' ||
+              t === 'group-child' || t === 'list-end'
             ))
             : args;
 
@@ -73,12 +78,17 @@ export const sidebarCollisionDetection: CollisionDetection = (args) => {
 
   const scoped =
     activeType === 'group-reorder'
-      ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder')
+      ? filterByType(args, (t) => (
+        t === 'segment' || t === 'group-reorder' || t === 'list-end'
+      ))
       : activeType === 'segment'
-        ? filterByType(args, (t) => t === 'segment' || t === 'group-reorder' || t === 'group-add')
+        ? filterByType(args, (t) => (
+          t === 'segment' || t === 'group-reorder' || t === 'group-add' || t === 'list-end'
+        ))
         : activeType === 'group-child'
           ? filterByType(args, (t) => (
-            t === 'segment' || t === 'group-reorder' || t === 'group-add' || t === 'group-child'
+            t === 'segment' || t === 'group-reorder' || t === 'group-add' ||
+            t === 'group-child' || t === 'list-end'
           ))
           : args;
 

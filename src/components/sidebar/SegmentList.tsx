@@ -15,6 +15,7 @@ import {
 } from '@/lib/segment-tree';
 import { sidebarCollisionDetection } from '@/lib/dnd-utils';
 import { SegmentDragPreview } from '@/components/common/SegmentDragPreview';
+import { ListEndDropZone } from '@/components/common/ListEndDropZone';
 import { SortableGroupFolder } from './GroupFolder';
 import { SortableSegmentItem } from './SegmentItem';
 
@@ -123,6 +124,29 @@ export function SegmentList() {
     // 明示的 no-op: group-reorder を group-add にドロップしてもグループ並び替えには使わない
     if (activeType === 'group-reorder' && overType === 'group-add') {
       return;
+    }
+
+    // ケース1.5: リスト末尾ドロップゾーン（group-child なら離脱+末尾、他タイプは末尾に移動）
+    if (overType === 'list-end') {
+      if (activeType === 'group-child') {
+        dispatch({
+          type: 'SEGMENT_EJECTED_FROM_GROUP',
+          payload: { segmentId: active.id as string, targetIndex: segments.length },
+        });
+        return;
+      }
+      if (activeType === 'segment' || activeType === 'group-reorder') {
+        const fromIndex = tree.findIndex((item) => getTreeItemId(item) === active.id);
+        if (fromIndex === -1 || fromIndex === tree.length - 1) return;
+        const newTree = [...tree];
+        const [moved] = newTree.splice(fromIndex, 1);
+        newTree.push(moved);
+        dispatch({
+          type: 'SEGMENTS_BULK_REORDERED',
+          payload: { segmentIds: flattenTreeToSegmentIds(newTree) },
+        });
+        return;
+      }
     }
 
     // ケース2: group-child 同士のドロップ
@@ -360,6 +384,9 @@ export function SegmentList() {
               )
             ))}
           </SortableContext>
+
+          {/* 末尾ドロップゾーン: リスト最下部にドロップしても確実にヒットさせる */}
+          <ListEndDropZone id="sidebar-list-end" activeType={activeDrag?.type} />
 
           {/* カーソル追従の浮遊プレビュー（segment/group-reorder 両対応） */}
           <DragOverlay dropAnimation={null}>
