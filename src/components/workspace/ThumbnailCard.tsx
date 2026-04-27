@@ -20,10 +20,9 @@ export const ThumbnailCard = memo(function ThumbnailCard({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dispatch = useAppDispatch();
   const sourceFiles = useAppState().sourceFiles;
-  const rendered = useRef(false);
 
   useEffect(() => {
-    if (!canvasRef.current || rendered.current) return;
+    if (!canvasRef.current) return;
     const sf = sourceFiles[page.sourceFileId];
     if (!sf) return;
 
@@ -33,7 +32,6 @@ export const ThumbnailCard = memo(function ThumbnailCard({
         const doc = await loadPdfDocument(sf.arrayBuffer, page.sourceFileId);
         if (cancelled || !canvasRef.current) return;
         await renderPageToCanvas(doc, page.sourcePageIndex, canvasRef.current, THUMB_SCALE, page.rotation);
-        rendered.current = true;
         canvasRef.current.toBlob((blob) => {
           if (blob && !cancelled) {
             dispatch({ type: 'PAGE_THUMBNAIL_READY', payload: { pageId: page.id, thumbnailUrl: URL.createObjectURL(blob) } });
@@ -45,10 +43,6 @@ export const ThumbnailCard = memo(function ThumbnailCard({
     })();
     return () => { cancelled = true; };
   }, [page.sourceFileId, page.sourcePageIndex, page.rotation, sourceFiles, page.id, dispatch]);
-
-  useEffect(() => {
-    rendered.current = false;
-  }, [page.rotation]);
 
   return (
     <div

@@ -5,7 +5,7 @@ import { useExport } from '@/hooks/useExport';
 import { useGemini } from '@/hooks/useGemini';
 import { useAppVersion } from '@/hooks/useAppVersion';
 import {
-  FilePlus, Download, RotateCcw, PanelRight,
+  FilePlus, Download, RotateCcw, RotateCw, FlipVertical2, ChevronDown, PanelRight,
   Sparkles, Loader2, Stamp, Undo2, Redo2,
   FolderOpen, Check, AlertTriangle,
 } from 'lucide-react';
@@ -76,6 +76,9 @@ export function Header() {
           リセット
         </button>
       )}
+
+      {/* Rotate all pages */}
+      {hasFiles && <RotateAllDropdown pageCount={Object.keys(state.pages).length} />}
 
       {/* Undo / Redo */}
       {hasFiles && (
@@ -195,6 +198,73 @@ function SaveStatusIndicator({ status, lastSavedAt }: { status: 'idle' | 'saving
     <div className="flex items-center gap-1 px-2 py-1 text-xs text-green-600" title="自動保存済み">
       <Check className="w-3 h-3" />
       <span>保存済{timeStr}</span>
+    </div>
+  );
+}
+
+function RotateAllDropdown({ pageCount }: { pageCount: number }) {
+  const dispatch = useAppDispatch();
+  const state = useAppState();
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen]);
+
+  const handleRotate = (degrees: 90 | -90 | 180) => {
+    setIsOpen(false);
+    const pageIds = Object.keys(state.pages);
+    if (pageIds.length === 0) return;
+    dispatch({ type: 'PAGES_ROTATED', payload: { pageIds, degrees } });
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-600"
+        title={`全${pageCount}ページを一括回転`}
+      >
+        <RotateCw className="w-4 h-4" />
+        全ページ回転
+        <ChevronDown className="w-3 h-3" />
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[220px]">
+          <button
+            onClick={() => handleRotate(-90)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+          >
+            <RotateCcw className="w-4 h-4 text-gray-500" />
+            全ページを左に90°
+          </button>
+          <button
+            onClick={() => handleRotate(90)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+          >
+            <RotateCw className="w-4 h-4 text-gray-500" />
+            全ページを右に90°
+          </button>
+          <button
+            onClick={() => handleRotate(180)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-gray-700"
+          >
+            <FlipVertical2 className="w-4 h-4 text-gray-500" />
+            全ページを180°回転
+          </button>
+          <div className="px-3 pt-1 pb-0.5 text-[10px] text-gray-400 border-t border-gray-100 mt-1">
+            対象: {pageCount}ページ ・ Ctrl+Z で取消
+          </div>
+        </div>
+      )}
     </div>
   );
 }
