@@ -59,6 +59,7 @@ interface ElectronAPI {
   findJapaneseFont: () => Promise<string | null>;
   readFontFile: (fontPath: string) => Promise<Uint8Array | null>;
   getDefaultOutput: () => Promise<string>;
+  printPdf: (bytes: Uint8Array) => Promise<{ success: boolean; error?: string }>;
   library: LibraryAPI;
   archive: ArchiveAPI;
   update: UpdateAPI;

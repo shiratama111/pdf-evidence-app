@@ -234,6 +234,63 @@ ipcMain.handle('get-default-output', async () => {
   return path.join(desktop, '証拠スタンプ出力');
 });
 
+/**
+ * PDFバイナリを OS 印刷ダイアログ経由で印刷する。
+ * 一時ファイルに書き出してから非表示の BrowserWindow に loadFile し、
+ * Electron 内蔵の Chrome PDF Viewer 上で webContents.print() を呼ぶ。
+ *
+ * 注意: Windows 印刷ダイアログで「プレビュー」を選ぶと「印刷プレビューに対応していない」
+ * 旨のメッセージが出ることがあるが、そのまま OK すれば印刷自体は進む（プレビュー UI を
+ * Electron が提供していないだけで、印刷ジョブは正常）。
+ */
+ipcMain.handle('print:pdf', async (_event, bytes) => {
+  let tmpPath = null;
+  let printWin = null;
+  try {
+    const byteLength = typeof bytes?.byteLength === 'number' ? bytes.byteLength : bytes?.length;
+    console.log('[print:pdf] received bytes:', byteLength);
+
+    const tmpDir = app.getPath('temp');
+    tmpPath = path.join(tmpDir, `pdf-evidence-print-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.pdf`);
+    fs.writeFileSync(tmpPath, toNodeBuffer(bytes));
+    const stat = fs.statSync(tmpPath);
+    console.log('[print:pdf] wrote', stat.size, 'bytes to', tmpPath);
+
+    printWin = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        plugins: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    await printWin.loadFile(tmpPath);
+    // Chrome PDF Viewer が初期化される時間を確保
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const result = await new Promise((resolve) => {
+      printWin.webContents.print(
+        { silent: false, printBackground: true, color: true },
+        (success, errorType) => {
+          resolve({ success, errorType: errorType || null });
+        },
+      );
+    });
+
+    return { success: result.success, error: result.success ? undefined : (result.errorType || 'cancelled') };
+  } catch (err) {
+    console.error('[print:pdf] error:', err.message, err.stack);
+    return { success: false, error: err.message };
+  } finally {
+    try { if (printWin && !printWin.isDestroyed()) printWin.close(); } catch {}
+    if (tmpPath) {
+      // 印刷ジョブが OS に渡るまで少し残してから削除
+      setTimeout(() => { try { fs.unlinkSync(tmpPath); } catch {} }, 30000);
+    }
+  }
+});
+
 // ---------------------------------------------------------------------------
 // ライブラリ管理（自動保存先）
 // ---------------------------------------------------------------------------

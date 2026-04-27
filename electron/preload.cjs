@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** デフォルト出力先パスを取得 */
   getDefaultOutput: () => ipcRenderer.invoke('get-default-output'),
 
+  /** PDFバイナリをOS印刷ダイアログ経由で印刷 */
+  printPdf: (bytes) => ipcRenderer.invoke('print:pdf', toTransferablePdfBytes(bytes)),
+
   /** ライブラリ管理 API（自動保存先） */
   library: {
     list: () => ipcRenderer.invoke('library:list'),

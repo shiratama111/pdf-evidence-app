@@ -2,10 +2,11 @@ import { useRef, useState, useEffect } from 'react';
 import { useAppState, useAppDispatch, useUndoRedo } from '@/state/AppContext';
 import { usePdfLoader } from '@/hooks/usePdfLoader';
 import { useExport } from '@/hooks/useExport';
+import { usePrint } from '@/hooks/usePrint';
 import { useGemini } from '@/hooks/useGemini';
 import { useAppVersion } from '@/hooks/useAppVersion';
 import {
-  FilePlus, Download, RotateCcw, RotateCw, FlipVertical2, ChevronDown, PanelRight,
+  FilePlus, Download, Printer, RotateCcw, RotateCw, FlipVertical2, ChevronDown, PanelRight,
   Sparkles, Loader2, Stamp, Undo2, Redo2,
   FolderOpen, Check, AlertTriangle,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ export function Header() {
   const dispatch = useAppDispatch();
   const { loadFiles } = usePdfLoader();
   const { exportIndividual, exportMerged, exportSelected, isExporting } = useExport();
+  const { printAll, printSelected, isPrinting } = usePrint();
   const { analyze, isProcessing: isAiProcessing } = useGemini();
   const appVersion = useAppVersion();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,6 +151,14 @@ export function Header() {
         <PanelRight className="w-4 h-4" />
       </button>
 
+      {/* Print */}
+      {hasFiles && <PrintDropdown
+        isPrinting={isPrinting}
+        printAll={printAll}
+        printSelected={printSelected}
+        selectedCount={state.selectedSegmentIds.length}
+      />}
+
       {/* Export */}
       {hasFiles && <ExportDropdown
         isExporting={isExporting}
@@ -262,6 +272,75 @@ function RotateAllDropdown({ pageCount }: { pageCount: number }) {
           </button>
           <div className="px-3 pt-1 pb-0.5 text-[10px] text-gray-400 border-t border-gray-100 mt-1">
             対象: {pageCount}ページ ・ Ctrl+Z で取消
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PrintDropdown({ isPrinting, printAll, printSelected, selectedCount }: {
+  isPrinting: boolean;
+  printAll: () => void;
+  printSelected: () => void;
+  selectedCount: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen]);
+
+  const handleAction = (fn: () => void) => {
+    setIsOpen(false);
+    fn();
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isPrinting}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 disabled:opacity-50"
+        title="OS印刷ダイアログを開いてプリンタ・部数を指定して印刷します"
+      >
+        {isPrinting ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Printer className="w-4 h-4" />
+        )}
+        印刷
+        <ChevronDown className="w-3 h-3" />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-20 min-w-[260px]">
+          <button
+            onClick={() => handleAction(printAll)}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700"
+          >
+            全てのセグメントを印刷
+          </button>
+          <hr className="my-1 border-gray-100" />
+          <button
+            onClick={() => handleAction(printSelected)}
+            disabled={selectedCount === 0}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            選択したセグメントを印刷
+            {selectedCount > 0 && (
+              <span className="ml-1 text-xs text-blue-500">({selectedCount}件)</span>
+            )}
+          </button>
+          <div className="px-3 pt-1 pb-0.5 text-[10px] text-gray-400 border-t border-gray-100 mt-1">
+            スタンプ・墨消し反映 ・ OS印刷ダイアログを開きます
           </div>
         </div>
       )}
