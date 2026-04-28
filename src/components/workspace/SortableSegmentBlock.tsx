@@ -37,7 +37,7 @@ interface SortableSegmentBlockProps {
   /** ページD&D中フラグ。true の間だけ各セグメント末尾にドロップゾーンを表示する */
   isDraggingPage: boolean;
   registerRef: (id: string, el: HTMLDivElement | null) => void;
-  onPageSelect: (pageId: string, additive: boolean) => void;
+  onPageSelect: (pageId: string, shiftKey: boolean) => void;
   onPageDoubleClick: (pageId: string) => void;
   onSegmentToggle: (segmentId: string) => void;
   onSplit: (segmentId: string, afterPageId: string) => void;
@@ -353,7 +353,7 @@ interface SortableChildSegmentOnWorkspaceProps {
   isSelected: boolean;
   isFocused: boolean;
   registerRef: (id: string, el: HTMLDivElement | null) => void;
-  onPageSelect: (pageId: string, additive: boolean) => void;
+  onPageSelect: (pageId: string, shiftKey: boolean) => void;
   onPageDoubleClick: (pageId: string) => void;
   onSegmentToggle: (segmentId: string) => void;
   onSplit: (segmentId: string, afterPageId: string) => void;
@@ -495,7 +495,7 @@ interface SegmentPageGridProps {
   startIndex: number;
   selectedPageIds: string[];
   isDraggingPage: boolean;
-  onPageSelect: (pageId: string, additive: boolean) => void;
+  onPageSelect: (pageId: string, shiftKey: boolean) => void;
   onPageDoubleClick: (pageId: string) => void;
   onSplit: (segmentId: string, afterPageId: string) => void;
 }

@@ -25,7 +25,7 @@ interface SortablePageCardProps {
   globalIndex: number;
   segmentColor: string;
   isSelected: boolean;
-  onSelect: (pageId: string, additive: boolean) => void;
+  onSelect: (pageId: string, shiftKey: boolean) => void;
   onDoubleClick: (pageId: string) => void;
   /** スプリットボタン等の overlay を差し込む */
   children?: ReactNode;

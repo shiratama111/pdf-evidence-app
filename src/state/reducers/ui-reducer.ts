@@ -16,6 +16,15 @@ export function uiReducer(state: AppState, action: AppAction): AppState | null {
       }
       return { ...state, selectedPageIds: [pageId] };
     }
+    case 'PAGE_SELECTION_SET': {
+      const seen = new Set<string>();
+      const pageIds = action.payload.pageIds.filter(pageId => {
+        if (!state.pages[pageId] || seen.has(pageId)) return false;
+        seen.add(pageId);
+        return true;
+      });
+      return { ...state, selectedPageIds: pageIds };
+    }
     case 'SELECTION_CLEARED':
       return { ...state, selectedPageIds: [] };
     case 'PREVIEW_SET':

@@ -21,7 +21,7 @@ import { SortableSegmentBlock } from './SortableSegmentBlock';
 import { ThumbnailCard } from './ThumbnailCard';
 import { SegmentDragPreview } from '@/components/common/SegmentDragPreview';
 import { ListEndDropZone } from '@/components/common/ListEndDropZone';
-import { RotateCw, RotateCcw, Trash2 } from 'lucide-react';
+import { RotateCw, RotateCcw, Trash2, X } from 'lucide-react';
 
 export function ThumbnailGrid() {
   const {
@@ -44,6 +44,7 @@ export function ThumbnailGrid() {
   const activePageId = activeDrag?.type === 'page' ? activeDrag.id : null;
   const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const lastScrolledFocusVersionRef = useRef<number>(focusVersion);
+  const lastSelectedPageIdRef = useRef<string | null>(null);
 
   // ドラッグ開始は 5px 移動後（クリック/選択との競合を防ぐ）
   const sensors = useSensors(
@@ -52,6 +53,7 @@ export function ThumbnailGrid() {
 
   const tree = useMemo(() => buildSegmentTree(segments), [segments]);
   const sortableIds = useMemo(() => tree.map(getTreeItemId), [tree]);
+  const orderedPageIds = useMemo(() => segments.flatMap(segment => segment.pageIds), [segments]);
 
   // フォーカス変化時にスクロール（focusVersion が変わった時のみ実際にスクロール）
   useEffect(() => {
@@ -77,8 +79,35 @@ export function ThumbnailGrid() {
     else segmentRefs.current.delete(id);
   }, []);
 
-  const handlePageSelect = useCallback((pageId: string, additive: boolean) => {
-    dispatch({ type: 'PAGE_SELECTED', payload: { pageId, additive } });
+  const handlePageSelect = useCallback((pageId: string, shiftKey: boolean) => {
+    const selectedSet = new Set(selectedPageIds);
+    const shouldSelect = !selectedSet.has(pageId);
+
+    if (shiftKey && lastSelectedPageIdRef.current) {
+      const currentIndex = orderedPageIds.indexOf(pageId);
+      const anchorIndex = orderedPageIds.indexOf(lastSelectedPageIdRef.current);
+      if (currentIndex !== -1 && anchorIndex !== -1) {
+        const start = Math.min(currentIndex, anchorIndex);
+        const end = Math.max(currentIndex, anchorIndex);
+        const range = orderedPageIds.slice(start, end + 1);
+        for (const rangePageId of range) {
+          if (shouldSelect) selectedSet.add(rangePageId);
+          else selectedSet.delete(rangePageId);
+        }
+        dispatch({
+          type: 'PAGE_SELECTION_SET',
+          payload: { pageIds: orderedPageIds.filter(orderedPageId => selectedSet.has(orderedPageId)) },
+        });
+        lastSelectedPageIdRef.current = pageId;
+      } else {
+        dispatch({ type: 'PAGE_SELECTED', payload: { pageId, additive: true } });
+        lastSelectedPageIdRef.current = pageId;
+      }
+    } else {
+      dispatch({ type: 'PAGE_SELECTED', payload: { pageId, additive: true } });
+      lastSelectedPageIdRef.current = pageId;
+    }
+
     const ownerSeg = segments.find((s) => s.pageIds.includes(pageId));
     if (ownerSeg) {
       dispatch({
@@ -86,7 +115,7 @@ export function ThumbnailGrid() {
         payload: { segmentId: ownerSeg.id, withScroll: false },
       });
     }
-  }, [dispatch, segments]);
+  }, [dispatch, orderedPageIds, selectedPageIds, segments]);
 
   const handlePageDoubleClick = useCallback((pageId: string) => {
     dispatch({ type: 'PREVIEW_SET', payload: { pageId } });
@@ -105,7 +134,13 @@ export function ThumbnailGrid() {
     if (selectedPageIds.length === 0) return;
     dispatch({ type: 'PAGES_DELETED', payload: { pageIds: selectedPageIds } });
     dispatch({ type: 'SELECTION_CLEARED' });
+    lastSelectedPageIdRef.current = null;
   }, [dispatch, selectedPageIds]);
+
+  const handleClearSelection = useCallback(() => {
+    dispatch({ type: 'SELECTION_CLEARED' });
+    lastSelectedPageIdRef.current = null;
+  }, [dispatch]);
 
   const handleSegmentToggle = useCallback((segmentId: string) => {
     dispatch({ type: 'SEGMENT_SELECTED', payload: { segmentId, additive: true } });
@@ -302,6 +337,13 @@ export function ThumbnailGrid() {
             {selectedPageIds.length}ページ選択中
           </span>
           <button
+            onClick={handleClearSelection}
+            className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
+            title="全ページ選択解除"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => handleRotate(-90)}
             className="p-1.5 rounded hover:bg-gray-100 text-gray-600"
             title="左に回転"
@@ -380,6 +422,7 @@ export function ThumbnailGrid() {
                 isSelected={false}
                 onSelect={() => undefined}
                 onDoubleClick={() => undefined}
+                showCheckbox={false}
               />
             </div>
           ) : activeDrag && (

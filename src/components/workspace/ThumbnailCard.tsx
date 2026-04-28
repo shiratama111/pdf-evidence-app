@@ -8,14 +8,15 @@ interface ThumbnailCardProps {
   globalIndex: number;
   segmentColor: string;
   isSelected: boolean;
-  onSelect: (pageId: string, additive: boolean) => void;
+  onSelect: (pageId: string, shiftKey: boolean) => void;
   onDoubleClick: (pageId: string) => void;
+  showCheckbox?: boolean;
 }
 
 const THUMB_SCALE = 0.4;
 
 export const ThumbnailCard = memo(function ThumbnailCard({
-  page, globalIndex, segmentColor, isSelected, onSelect, onDoubleClick,
+  page, globalIndex, segmentColor, isSelected, onSelect, onDoubleClick, showCheckbox = true,
 }: ThumbnailCardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dispatch = useAppDispatch();
@@ -49,11 +50,27 @@ export const ThumbnailCard = memo(function ThumbnailCard({
       className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
         isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-transparent hover:border-gray-300'
       }`}
-      onClick={(e) => {
-        onSelect(page.id, e.ctrlKey || e.metaKey);
+      onClick={() => {
         onDoubleClick(page.id);
       }}
     >
+      {showCheckbox && (
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            e.stopPropagation();
+            const nativeEvent = e.nativeEvent;
+            const shiftKey = 'shiftKey' in nativeEvent ? Boolean(nativeEvent.shiftKey) : false;
+            onSelect(page.id, shiftKey);
+          }}
+          className="absolute left-2 top-2 z-20 h-5 w-5 rounded border-gray-300 bg-white text-blue-600 accent-blue-600 shadow-sm cursor-pointer"
+          aria-label={`${globalIndex + 1}ページ目を選択`}
+        />
+      )}
+
       {/* Color indicator */}
       <div
         className="absolute top-0 left-0 right-0 h-1"

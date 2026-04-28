@@ -23,6 +23,7 @@ export type AppAction =
 
   // UI
   | { type: 'PAGE_SELECTED'; payload: { pageId: PageId; additive: boolean } }
+  | { type: 'PAGE_SELECTION_SET'; payload: { pageIds: PageId[] } }
   | { type: 'SELECTION_CLEARED' }
   | { type: 'PREVIEW_SET'; payload: { pageId: PageId | null } }
   | { type: 'PREVIEW_TOGGLED' }
