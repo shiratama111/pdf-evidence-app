@@ -12,6 +12,8 @@ const NON_UNDOABLE_ACTIONS = new Set([
   'EXPORT_STARTED',
   'EXPORT_PROGRESS',
   'EXPORT_FINISHED',
+  'PRINT_STARTED',
+  'PRINT_FINISHED',
   'AI_PROCESSING_STARTED',
   'AI_PROCESSING_FINISHED',
   'PAGE_SELECTED',
@@ -83,6 +85,7 @@ function undoableReducer(state: UndoableState, action: UndoableAction): Undoable
     isLoading: false,
     loadingMessage: '',
     isExporting: false,
+    isPrinting: false,
     exportProgress: 0,
     isAiProcessing: false,
   };

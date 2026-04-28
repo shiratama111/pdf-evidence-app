@@ -246,6 +246,18 @@ ipcMain.handle('get-default-output', async () => {
 ipcMain.handle('print:pdf', async (_event, bytes) => {
   let tmpPath = null;
   let printWin = null;
+  let cleanupTimer = null;
+
+  const cleanup = (delayMs = 0) => {
+    if (cleanupTimer) clearTimeout(cleanupTimer);
+    cleanupTimer = setTimeout(() => {
+      try { if (printWin && !printWin.isDestroyed()) printWin.close(); } catch {}
+      if (tmpPath) {
+        try { fs.unlinkSync(tmpPath); } catch {}
+      }
+    }, delayMs);
+  };
+
   try {
     const byteLength = typeof bytes?.byteLength === 'number' ? bytes.byteLength : bytes?.length;
     console.log('[print:pdf] received bytes:', byteLength);
@@ -269,25 +281,46 @@ ipcMain.handle('print:pdf', async (_event, bytes) => {
     // Chrome PDF Viewer が初期化される時間を確保
     await new Promise((resolve) => setTimeout(resolve, 600));
 
-    const result = await new Promise((resolve) => {
-      printWin.webContents.print(
-        { silent: false, printBackground: true, color: true },
-        (success, errorType) => {
-          resolve({ success, errorType: errorType || null });
-        },
-      );
-    });
+    return await new Promise((resolve) => {
+      let resolved = false;
+      let callbackTimer = null;
 
-    return { success: result.success, error: result.success ? undefined : (result.errorType || 'cancelled') };
+      const finish = (result, cleanupDelayMs) => {
+        if (callbackTimer) clearTimeout(callbackTimer);
+        if (!resolved) {
+          resolved = true;
+          cleanup(cleanupDelayMs);
+          resolve(result);
+          return;
+        }
+        // タイムアウト後に印刷コールバックが遅れて返った場合は、その時点で後片付けを早める。
+        cleanup(cleanupDelayMs);
+      };
+
+      callbackTimer = setTimeout(() => {
+        console.warn('[print:pdf] print callback timeout; returning after print handoff');
+        finish({ success: true, warning: 'print-callback-timeout' }, 600000);
+      }, 15000);
+
+      try {
+        printWin.webContents.print(
+          { silent: false, printBackground: true, color: true },
+          (success, errorType) => {
+            console.log('[print:pdf] callback:', success, errorType || null);
+            finish(
+              { success, error: success ? undefined : (errorType || 'cancelled') },
+              30000,
+            );
+          },
+        );
+      } catch (err) {
+        finish({ success: false, error: err.message }, 0);
+      }
+    });
   } catch (err) {
     console.error('[print:pdf] error:', err.message, err.stack);
+    cleanup(0);
     return { success: false, error: err.message };
-  } finally {
-    try { if (printWin && !printWin.isDestroyed()) printWin.close(); } catch {}
-    if (tmpPath) {
-      // 印刷ジョブが OS に渡るまで少し残してから削除
-      setTimeout(() => { try { fs.unlinkSync(tmpPath); } catch {} }, 30000);
-    }
   }
 });
 

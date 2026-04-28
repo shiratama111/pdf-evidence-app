@@ -95,6 +95,7 @@ export interface AppState {
   isLoading: boolean;
   loadingMessage: string;
   isExporting: boolean;
+  isPrinting: boolean;
   exportProgress: number;
   geminiApiKey: string | null;
   aiSuggestions: AiSplitSuggestion | null;

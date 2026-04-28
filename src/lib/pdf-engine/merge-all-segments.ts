@@ -33,6 +33,8 @@ export async function mergeAllSegments(
 
     if (seg.evidenceNumber && stampSettings && fontBytes) {
       const font = await embedStampFont(mergedDoc, fontBytes);
+      const firstPageId = seg.pageIds[0];
+      const firstPageRotation = firstPageId ? (pages[firstPageId]?.rotation ?? 0) : 0;
       stampSegmentFirstPage(
         mergedDoc,
         appendResult.firstPageIndex,
@@ -40,6 +42,7 @@ export async function mergeAllSegments(
         symbol,
         stampSettings,
         font,
+        firstPageRotation,
       );
     }
 

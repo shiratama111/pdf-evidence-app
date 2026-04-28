@@ -26,6 +26,7 @@ export const initialState: AppState = {
   isLoading: false,
   loadingMessage: '',
   isExporting: false,
+  isPrinting: false,
   exportProgress: 0,
   geminiApiKey: localStorage.getItem('waketena_gemini_key'),
   aiSuggestions: null,

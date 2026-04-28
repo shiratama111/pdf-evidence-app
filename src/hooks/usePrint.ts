@@ -31,7 +31,7 @@ export function usePrint() {
       }
     }
 
-    dispatch({ type: 'EXPORT_STARTED' });
+    dispatch({ type: 'PRINT_STARTED' });
 
     try {
       let fontBytes: Uint8Array | null = null;
@@ -43,20 +43,12 @@ export function usePrint() {
         }
       }
 
-      const onProgress = (idx: number) => {
-        dispatch({
-          type: 'EXPORT_PROGRESS',
-          payload: { progress: Math.round(((idx + 1) / targetSegments.length) * 100) },
-        });
-      };
-
       const mergedBytes = await mergeAllSegments(
         state.sourceFiles,
         state.pages,
         targetSegments,
         state.stampEnabled ? state.stampSettings : null,
         fontBytes,
-        onProgress,
       );
 
       const result = await api.printPdf(mergedBytes);
@@ -67,7 +59,7 @@ export function usePrint() {
       console.error('[print] error:', err);
       alert(`印刷に失敗しました: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      dispatch({ type: 'EXPORT_FINISHED' });
+      dispatch({ type: 'PRINT_FINISHED' });
     }
   }, [
     state.sourceFiles,
@@ -82,6 +74,6 @@ export function usePrint() {
   return {
     printAll: () => printWith('all'),
     printSelected: () => printWith('selected'),
-    isPrinting: state.isExporting,
+    isPrinting: state.isPrinting,
   };
 }

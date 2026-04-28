@@ -36,6 +36,8 @@ export type AppAction =
   | { type: 'EXPORT_STARTED' }
   | { type: 'EXPORT_PROGRESS'; payload: { progress: number } }
   | { type: 'EXPORT_FINISHED' }
+  | { type: 'PRINT_STARTED' }
+  | { type: 'PRINT_FINISHED' }
 
   // AI
   | { type: 'GEMINI_API_KEY_SET'; payload: { key: string } }

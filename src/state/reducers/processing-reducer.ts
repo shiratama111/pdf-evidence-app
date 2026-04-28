@@ -14,6 +14,10 @@ export function processingReducer(state: AppState, action: AppAction): AppState 
       return { ...state, exportProgress: action.payload.progress };
     case 'EXPORT_FINISHED':
       return { ...state, isExporting: false, exportProgress: 100 };
+    case 'PRINT_STARTED':
+      return { ...state, isPrinting: true };
+    case 'PRINT_FINISHED':
+      return { ...state, isPrinting: false };
     case 'GEMINI_API_KEY_SET':
       localStorage.setItem('waketena_gemini_key', action.payload.key);
       return { ...state, geminiApiKey: action.payload.key };
