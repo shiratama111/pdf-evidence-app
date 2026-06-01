@@ -42,6 +42,7 @@ function buildMergedFilename(
       subStart,
       subEnd,
       stampSettings.format,
+      stampSettings.branchFormat,
     );
     return `${labelPart} ${baseName}.pdf`;
   }
@@ -58,7 +59,12 @@ function buildSegmentFilename(
     return `${segment.name}.pdf`;
   }
 
-  const labelPart = formatFilenameLabel(symbol, segment.evidenceNumber, stampSettings.format);
+  const labelPart = formatFilenameLabel(
+    symbol,
+    segment.evidenceNumber,
+    stampSettings.format,
+    stampSettings.branchFormat,
+  );
   return `${labelPart} ${segment.name}.pdf`;
 }
 

@@ -22,6 +22,7 @@ export function PreviewPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scaleIdx, setScaleIdx] = useState(2);
   const [panelWidth, setPanelWidth] = useState(720);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const isResizing = useRef(false);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -62,7 +63,12 @@ export function PreviewPanel() {
 
   // スタンプラベル（先頭ページのみ）
   const stampLabel = (stampEnabled && isFirstPageInSegment && ownerSegment?.evidenceNumber)
-    ? formatStampLabel(getEffectiveSymbol(stampSettings), ownerSegment.evidenceNumber, stampSettings.format)
+    ? formatStampLabel(
+        getEffectiveSymbol(stampSettings),
+        ownerSegment.evidenceNumber,
+        stampSettings.format,
+        stampSettings.branchFormat,
+      )
     : null;
 
   useEffect(() => {
@@ -76,9 +82,11 @@ export function PreviewPanel() {
       if (cancelled || !canvasRef.current) return;
       const canvas = canvasRef.current;
       await renderPageToCanvas(doc, page.sourcePageIndex, canvas, PREVIEW_SCALES[scaleIdx], page.rotation);
+      if (cancelled) return;
+      setCanvasSize({ width: canvas.width, height: canvas.height });
 
       // スタンプオーバーレイ描画
-      if (stampLabel && !cancelled) {
+      if (stampLabel) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           drawStampOverlay(ctx, canvas.width, canvas.height, stampLabel, stampSettings, PREVIEW_SCALES[scaleIdx]);
@@ -219,11 +227,11 @@ export function PreviewPanel() {
       <div className="flex-1 overflow-auto flex items-start justify-center p-2 bg-gray-50">
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="shadow-lg" />
-          {page && (canvasRef.current?.width ?? 0) > 0 && (
+          {page && canvasSize.width > 0 && (
             <RedactionOverlay
               pageId={page.id}
-              canvasWidth={canvasRef.current?.width ?? 0}
-              canvasHeight={canvasRef.current?.height ?? 0}
+              canvasWidth={canvasSize.width}
+              canvasHeight={canvasSize.height}
               pageWidth={page.width}
               pageHeight={page.height}
               scale={PREVIEW_SCALES[scaleIdx]}

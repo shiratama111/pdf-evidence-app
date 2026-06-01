@@ -59,6 +59,7 @@ export interface StampSettings {
   symbol: string;       // 甲, 乙, 丙, 丁, 戊, 疎甲, 疎乙, 弁, 資料, __custom__
   customSymbol: string; // __custom__時に使う文字列
   format: StampFormat;
+  branchFormat: BranchFormat;
   fontSize: number;
   fontColor: string;    // black, red, blue
   marginTop: number;
@@ -70,6 +71,7 @@ export interface StampSettings {
 }
 
 export type StampFormat = 'mints' | 'mints-formal' | 'simple' | 'hyphen' | 'formal' | 'goushou';
+export type BranchFormat = 'no' | 'hyphen' | 'fullwidth-hyphen';
 
 export type ExportMode = 'split_pdfs' | 'zip';
 

@@ -1,4 +1,4 @@
-import type { StampSettings } from '@/types/pdf';
+import type { BranchFormat, StampSettings } from '@/types/pdf';
 
 /** Segment color palette */
 export const SEGMENT_COLORS = [
@@ -42,11 +42,26 @@ export const FORMAT_OPTIONS = [
   { value: 'hyphen', label: 'ハイフン', example: '甲1-1' },
 ] as const;
 
+/** 枝番フォーマットの選択肢 */
+export const BRANCH_FORMAT_OPTIONS = [
+  { value: 'no', label: 'の', example: '甲第1号証の1' },
+  { value: 'hyphen', label: '半角ハイフン', example: '甲第1号証-1' },
+  { value: 'fullwidth-hyphen', label: '全角ハイフン', example: '甲第1号証－1' },
+] as const satisfies ReadonlyArray<{ value: BranchFormat; label: string; example: string }>;
+
+export function normalizeBranchFormat(value: unknown): BranchFormat {
+  if (value === 'hyphen' || value === 'fullwidth-hyphen' || value === 'no') {
+    return value;
+  }
+  return 'no';
+}
+
 /** デフォルトのスタンプ設定 */
 export const DEFAULT_STAMP_SETTINGS: StampSettings = {
   symbol: '甲',
   customSymbol: '',
   format: 'mints-formal',
+  branchFormat: 'no',
   fontSize: 14,
   fontColor: 'red',
   marginTop: 15,

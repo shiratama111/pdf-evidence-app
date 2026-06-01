@@ -1,6 +1,6 @@
 import type { AppState } from '@/types/pdf';
 import type { AppAction } from './actions';
-import { DEFAULT_STAMP_SETTINGS } from '@/constants/defaults';
+import { DEFAULT_STAMP_SETTINGS, normalizeBranchFormat } from '@/constants/defaults';
 import { pagesReducer } from './reducers/pages-reducer';
 import { processingReducer } from './reducers/processing-reducer';
 import { segmentsReducer } from './reducers/segments-reducer';
@@ -11,7 +11,13 @@ import { uiReducer } from './reducers/ui-reducer';
 function loadStampSettings() {
   try {
     const saved = localStorage.getItem('waketena_stamp_settings');
-    if (saved) return { ...DEFAULT_STAMP_SETTINGS, ...JSON.parse(saved) };
+    if (saved) {
+      const settings = { ...DEFAULT_STAMP_SETTINGS, ...JSON.parse(saved) };
+      return {
+        ...settings,
+        branchFormat: normalizeBranchFormat(settings.branchFormat),
+      };
+    }
   } catch { /* ignore */ }
   return DEFAULT_STAMP_SETTINGS;
 }

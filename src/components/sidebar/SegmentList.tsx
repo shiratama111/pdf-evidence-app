@@ -389,6 +389,7 @@ export function SegmentList() {
                   stampEnabled={stampEnabled}
                   symbol={symbol}
                   format={stampSettings.format}
+                  branchFormat={stampSettings.branchFormat}
                   selectedSegmentIds={selectedSegmentIds}
                   focusedSegmentId={focusedSegmentId}
                   onToggleSelect={handleToggleSelect}
@@ -406,6 +407,7 @@ export function SegmentList() {
                   stampEnabled={stampEnabled}
                   symbol={symbol}
                   format={stampSettings.format}
+                  branchFormat={stampSettings.branchFormat}
                   isSelected={selectedSegmentIds.includes(item.segment.id)}
                   isFocused={focusedSegmentId === item.segment.id}
                   onToggleSelect={handleToggleSelect}

@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { FileText, GripVertical, Merge, Trash2 } from 'lucide-react';
 import { formatStampLabel } from '@/lib/pdf-stamper';
-import type { Segment, StampFormat } from '@/types/pdf';
+import type { BranchFormat, Segment, StampFormat } from '@/types/pdf';
 
 type DragListeners = Record<string, unknown>;
 
@@ -16,6 +16,7 @@ interface BaseSegmentItemProps {
   stampEnabled: boolean;
   symbol: string;
   format: StampFormat;
+  branchFormat: BranchFormat;
   isSelected: boolean;
   isFocused: boolean;
   onToggleSelect: (id: string) => void;
@@ -147,9 +148,10 @@ function getEvidenceLabel(
   stampEnabled: boolean,
   symbol: string,
   format: StampFormat,
+  branchFormat: BranchFormat,
 ) {
   return stampEnabled && segment.evidenceNumber
-    ? formatStampLabel(symbol, segment.evidenceNumber, format)
+    ? formatStampLabel(symbol, segment.evidenceNumber, format, branchFormat)
     : null;
 }
 
@@ -163,6 +165,7 @@ function SegmentRow({
   stampEnabled,
   symbol,
   format,
+  branchFormat,
   isSelected,
   isFocused,
   onToggleSelect,
@@ -178,7 +181,7 @@ function SegmentRow({
     handleKeyDown,
     handleStartEdit,
   } = useSegmentNameEditor(segment, onRename);
-  const evidenceLabel = getEvidenceLabel(segment, stampEnabled, symbol, format);
+  const evidenceLabel = getEvidenceLabel(segment, stampEnabled, symbol, format, branchFormat);
 
   return (
     <div
@@ -277,6 +280,7 @@ function ChildSegmentItem({
   stampEnabled,
   symbol,
   format,
+  branchFormat,
   isSelected,
   isFocused,
   onToggleSelect,
@@ -291,7 +295,7 @@ function ChildSegmentItem({
     handleKeyDown,
     handleStartEdit,
   } = useSegmentNameEditor(segment, onRename);
-  const evidenceLabel = getEvidenceLabel(segment, stampEnabled, symbol, format);
+  const evidenceLabel = getEvidenceLabel(segment, stampEnabled, symbol, format, branchFormat);
 
   return (
     <div

@@ -122,7 +122,12 @@ export function stampSegmentFirstPage(
 ): void {
   if (!evidenceNumber || !font) return;
 
-  const label = formatStampLabel(symbol, evidenceNumber, stampSettings.format);
+  const label = formatStampLabel(
+    symbol,
+    evidenceNumber,
+    stampSettings.format,
+    stampSettings.branchFormat,
+  );
   const firstPage = pdfDoc.getPage(firstPageIndex);
   drawStampOnPage(firstPage, font, label, stampSettings, pageRotation);
 }

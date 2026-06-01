@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   ChevronDown, ChevronRight, FolderClosed, FolderOpen, GripVertical, Plus, Ungroup,
 } from 'lucide-react';
-import type { Segment, StampFormat } from '@/types/pdf';
+import type { BranchFormat, Segment, StampFormat } from '@/types/pdf';
 import { SortableChildSegmentItem } from './SegmentItem';
 
 type DragListeners = Record<string, unknown>;
@@ -28,6 +28,7 @@ export interface GroupFolderProps {
   stampEnabled: boolean;
   symbol: string;
   format: StampFormat;
+  branchFormat: BranchFormat;
   selectedSegmentIds: string[];
   focusedSegmentId: string | null;
   onToggleSelect: (id: string) => void;
@@ -122,6 +123,7 @@ function GroupFolder({
   stampEnabled,
   symbol,
   format,
+  branchFormat,
   selectedSegmentIds,
   focusedSegmentId,
   onToggleSelect,
@@ -256,6 +258,7 @@ function GroupFolder({
                 stampEnabled={stampEnabled}
                 symbol={symbol}
                 format={format}
+                branchFormat={branchFormat}
                 isSelected={selectedSegmentIds.includes(segment.id)}
                 isFocused={focusedSegmentId === segment.id}
                 onToggleSelect={onToggleSelect}

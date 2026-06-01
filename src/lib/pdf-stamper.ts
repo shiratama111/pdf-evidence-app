@@ -4,7 +4,7 @@
  */
 import { PDFDocument, degrees, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import type { StampSettings, StampFormat, EvidenceNumber } from '@/types/pdf';
+import type { StampSettings, StampFormat, EvidenceNumber, BranchFormat } from '@/types/pdf';
 
 type RegisteredFontkit = Parameters<PDFDocument['registerFontkit']>[0];
 type FontkitCreate = (buffer: Uint8Array, postscriptName?: string) => unknown;
@@ -40,6 +40,7 @@ const fontkitWithTtcSupport: RegisteredFontkit = {
 type FormatFn = (symbol: string, num: number) => string;
 type BranchFn = (symbol: string, num: number, sub: number) => string;
 type MergedFn = (symbol: string, num: number, subStart: number, subEnd: number) => string;
+type LegacyBranchFormat = BranchFormat | 'default';
 
 interface FormatStyle {
   main: FormatFn;
@@ -89,6 +90,68 @@ const FORMAT_STYLES: Record<StampFormat, FormatStyle> = {
   },
 };
 
+function getBranchSeparator(branchFormat: LegacyBranchFormat = 'no'): string {
+  switch (branchFormat) {
+    case 'hyphen':
+      return '-';
+    case 'fullwidth-hyphen':
+      return '－';
+    case 'no':
+    case 'default':
+    default:
+      return 'の';
+  }
+}
+
+function getBranchRangeSeparator(branchFormat: LegacyBranchFormat = 'no'): string {
+  return branchFormat === 'no' ? '〜' : '～';
+}
+
+function getMainLabel(
+  symbol: string,
+  main: number,
+  format: StampFormat,
+  forFilename: boolean,
+): string {
+  const fmt = FORMAT_STYLES[format];
+  const fn = forFilename ? (fmt.filenameMain ?? fmt.main) : fmt.main;
+  return fn(symbol, main);
+}
+
+function formatBranchLabel(
+  symbol: string,
+  evidence: EvidenceNumber,
+  format: StampFormat,
+  branchFormat: LegacyBranchFormat = 'no',
+  forFilename = false,
+): string {
+  const separator = getBranchSeparator(branchFormat);
+  const sub = evidence.sub;
+
+  if (sub == null) {
+    return getMainLabel(symbol, evidence.main, format, forFilename);
+  }
+
+  return `${getMainLabel(symbol, evidence.main, format, forFilename)}${separator}${sub}`;
+}
+
+function formatMergedBranchLabel(
+  symbol: string,
+  main: number,
+  subStart: number,
+  subEnd: number,
+  format: StampFormat,
+  branchFormat: LegacyBranchFormat = 'no',
+  forFilename = false,
+): string {
+  const separator = getBranchSeparator(branchFormat);
+  const mainLabel = getMainLabel(symbol, main, format, forFilename);
+  if (subStart === subEnd) {
+    return `${mainLabel}${separator}${subStart}`;
+  }
+  return `${mainLabel}${separator}${subStart}${getBranchRangeSeparator(branchFormat)}${subEnd}`;
+}
+
 const COLORS = {
   black: rgb(0, 0, 0),
   red: rgb(0.8, 0, 0),
@@ -104,10 +167,11 @@ export function formatStampLabel(
   symbol: string,
   evidence: EvidenceNumber,
   format: StampFormat,
+  branchFormat: LegacyBranchFormat = 'no',
 ): string {
   const fmt = FORMAT_STYLES[format];
   if (evidence.sub != null) {
-    return fmt.branch(symbol, evidence.main, evidence.sub);
+    return formatBranchLabel(symbol, evidence, format, branchFormat);
   }
   return fmt.main(symbol, evidence.main);
 }
@@ -117,11 +181,11 @@ export function formatFilenameLabel(
   symbol: string,
   evidence: EvidenceNumber,
   format: StampFormat,
+  branchFormat: LegacyBranchFormat = 'no',
 ): string {
   const fmt = FORMAT_STYLES[format];
   if (evidence.sub != null) {
-    const fn = fmt.filenameBranch ?? fmt.branch;
-    return fn(symbol, evidence.main, evidence.sub);
+    return formatBranchLabel(symbol, evidence, format, branchFormat, true);
   }
   const fn = fmt.filenameMain ?? fmt.main;
   return fn(symbol, evidence.main);
@@ -134,12 +198,9 @@ export function formatMergedStampLabel(
   subStart: number,
   subEnd: number,
   format: StampFormat,
+  branchFormat: LegacyBranchFormat = 'no',
 ): string {
-  const fmt = FORMAT_STYLES[format];
-  if (subStart === subEnd) {
-    return fmt.branch(symbol, main, subStart);
-  }
-  return fmt.merged(symbol, main, subStart, subEnd);
+  return formatMergedBranchLabel(symbol, main, subStart, subEnd, format, branchFormat);
 }
 
 /** 統合枝番のファイル名用ラベルを生成（例: 甲001-1～3） */
@@ -149,14 +210,9 @@ export function formatMergedFilenameLabel(
   subStart: number,
   subEnd: number,
   format: StampFormat,
+  branchFormat: LegacyBranchFormat = 'no',
 ): string {
-  const fmt = FORMAT_STYLES[format];
-  if (subStart === subEnd) {
-    const fn = fmt.filenameBranch ?? fmt.branch;
-    return fn(symbol, main, subStart);
-  }
-  const fn = fmt.filenameMerged ?? fmt.merged;
-  return fn(symbol, main, subStart, subEnd);
+  return formatMergedBranchLabel(symbol, main, subStart, subEnd, format, branchFormat, true);
 }
 
 /** 実効的な符号文字列を返す */

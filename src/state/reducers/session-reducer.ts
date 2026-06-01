@@ -1,4 +1,5 @@
 import type { AppState } from '@/types/pdf';
+import { normalizeBranchFormat } from '@/constants/defaults';
 import type { AppAction } from '../actions';
 import { initialState } from '../appReducer';
 import { recolorSegments } from './reducer-helpers';
@@ -36,15 +37,24 @@ export function sessionReducer(state: AppState, action: AppAction): AppState | n
       return { ...state, saveStatus: 'saved', lastSavedAt: action.payload.savedAt };
     case 'SESSION_SAVE_FAILED':
       return { ...state, saveStatus: 'failed' };
-    case 'SESSION_RESTORED':
+    case 'SESSION_RESTORED': {
+      const restoredStampSettings = action.payload.state.stampSettings
+        ? { ...initialState.stampSettings, ...action.payload.state.stampSettings }
+        : initialState.stampSettings;
+      const normalizedStampSettings = {
+        ...restoredStampSettings,
+        branchFormat: normalizeBranchFormat(restoredStampSettings.branchFormat),
+      };
       return {
         ...initialState,
         geminiApiKey: state.geminiApiKey,
         ...action.payload.state,
+        stampSettings: normalizedStampSettings,
         currentSessionId: action.payload.sessionId,
         lastSavedAt: new Date().toISOString(),
         saveStatus: 'saved',
       };
+    }
     case 'SESSION_NEW_STARTED':
       return {
         ...initialState,

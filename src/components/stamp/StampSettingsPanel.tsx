@@ -1,6 +1,7 @@
 import { useAppState, useAppDispatch } from '@/state/AppContext';
-import { SYMBOL_OPTIONS, FORMAT_OPTIONS } from '@/constants/defaults';
+import { SYMBOL_OPTIONS, FORMAT_OPTIONS, BRANCH_FORMAT_OPTIONS } from '@/constants/defaults';
 import { X } from 'lucide-react';
+import type { BranchFormat } from '@/types/pdf';
 
 export function StampSettingsPanel() {
   const { stampEnabled, stampSettings } = useAppState();
@@ -75,6 +76,22 @@ export function StampSettingsPanel() {
               </label>
             ))}
           </div>
+        </div>
+
+        {/* 枝番形式 */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">枝番形式</label>
+          <select
+            className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm"
+            value={stampSettings.branchFormat ?? 'no'}
+            onChange={(e) => update({ branchFormat: e.target.value as BranchFormat })}
+          >
+            {BRANCH_FORMAT_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}（{opt.example}）
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* 開始番号 */}
