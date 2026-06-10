@@ -9,6 +9,7 @@ import type {
   StampSettings,
 } from '@/types/pdf';
 import { applyPageRedactions } from '../pdf-redactor';
+import { loadPdfDocument, renderPageToJpegBytes } from '../pdf-renderer';
 import {
   drawStampOnPage,
   embedJapaneseFont,
@@ -44,7 +45,12 @@ export function createSourceDocGetter(
   return async (sourceFileId: string) => {
     if (docCache.has(sourceFileId)) return docCache.get(sourceFileId)!;
     const sf = sourceFiles[sourceFileId];
-    const doc = await PDFDocument.load(sf.arrayBuffer.slice(0));
+    // 権限保護（暗号化）付きPDFでも読み込みを継続する。
+    // ただし pdf-lib は復号できないため、暗号化PDFのページは
+    // appendSegmentPages 側で copyPages せず pdf.js レンダリングに切り替える
+    const doc = await PDFDocument.load(sf.arrayBuffer.slice(0), {
+      ignoreEncryption: true,
+    });
     docCache.set(sourceFileId, doc);
     return doc;
   };
@@ -84,11 +90,32 @@ export async function appendSegmentPages(
     if (!page) continue;
 
     const srcDoc = await context.getDoc(page.sourceFileId);
-    const [copiedPage] = await pdfDoc.copyPages(srcDoc, [page.sourcePageIndex]);
-    if (page.rotation !== 0) {
-      copiedPage.setRotation(degrees(page.rotation));
+
+    if (srcDoc.isEncrypted) {
+      // 暗号化PDFは pdf-lib でストリームを復号できず copyPages すると
+      // 白紙・破損ページになるため、pdf.js（透過復号可能）で
+      // 高解像度レンダリングして画像ページとして追加する
+      const sourceFile = context.sourceFiles[page.sourceFileId];
+      const pdfjsDoc = await loadPdfDocument(sourceFile.arrayBuffer, page.sourceFileId);
+      const rendered = await renderPageToJpegBytes(pdfjsDoc, page.sourcePageIndex);
+      const image = await pdfDoc.embedJpg(rendered.bytes);
+      const newPage = pdfDoc.addPage([rendered.width, rendered.height]);
+      newPage.drawImage(image, {
+        x: 0,
+        y: 0,
+        width: rendered.width,
+        height: rendered.height,
+      });
+      if (page.rotation !== 0) {
+        newPage.setRotation(degrees(page.rotation));
+      }
+    } else {
+      const [copiedPage] = await pdfDoc.copyPages(srcDoc, [page.sourcePageIndex]);
+      if (page.rotation !== 0) {
+        copiedPage.setRotation(degrees(page.rotation));
+      }
+      pdfDoc.addPage(copiedPage);
     }
-    pdfDoc.addPage(copiedPage);
     const addedPageIndex = pdfDoc.getPageCount() - 1;
     addedAny = true;
 

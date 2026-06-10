@@ -71,6 +71,56 @@ export async function renderPageToBlob(
   });
 }
 
+export interface RenderedPageImage {
+  /** JPEG画像バイト */
+  bytes: Uint8Array;
+  /** ページ幅 (PDFポイント, scale=1) */
+  width: number;
+  /** ページ高さ (PDFポイント, scale=1) */
+  height: number;
+}
+
+/**
+ * ページを高解像度JPEGにレンダリングする。
+ * pdf-libが扱えない暗号化PDFのページを画像として出力PDFに
+ * 埋め込むためのフォールバックに使う（pdf.jsは権限保護PDFを透過復号できる）。
+ */
+export async function renderPageToJpegBytes(
+  doc: pdfjsLib.PDFDocumentProxy,
+  pageIndex: number,
+  dpi = 200,
+): Promise<RenderedPageImage> {
+  const page = await doc.getPage(pageIndex + 1);
+  const baseViewport = page.getViewport({ scale: 1 });
+  const scale = dpi / 72;
+  const viewport = page.getViewport({ scale });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d')!;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+
+  const bytes = await new Promise<Uint8Array>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error('ページ画像の生成に失敗しました'));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(blob);
+      },
+      'image/jpeg',
+      0.92,
+    );
+  });
+
+  return { bytes, width: baseViewport.width, height: baseViewport.height };
+}
+
 export function clearDocCache() {
   for (const doc of docCache.values()) {
     doc.destroy();
