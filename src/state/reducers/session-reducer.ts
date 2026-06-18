@@ -28,6 +28,7 @@ export function sessionReducer(state: AppState, action: AppAction): AppState | n
         ...initialState,
         geminiApiKey: state.geminiApiKey,
         stampSettings: state.stampSettings,
+        outputSettings: state.outputSettings,
       };
     case 'SESSION_ID_ASSIGNED':
       return { ...state, currentSessionId: action.payload.id };
@@ -45,11 +46,15 @@ export function sessionReducer(state: AppState, action: AppAction): AppState | n
         ...restoredStampSettings,
         branchFormat: normalizeBranchFormat(restoredStampSettings.branchFormat),
       };
+      const restoredOutputSettings = action.payload.state.outputSettings
+        ? { ...initialState.outputSettings, ...action.payload.state.outputSettings }
+        : initialState.outputSettings;
       return {
         ...initialState,
         geminiApiKey: state.geminiApiKey,
         ...action.payload.state,
         stampSettings: normalizedStampSettings,
+        outputSettings: restoredOutputSettings,
         currentSessionId: action.payload.sessionId,
         lastSavedAt: new Date().toISOString(),
         saveStatus: 'saved',
@@ -60,6 +65,7 @@ export function sessionReducer(state: AppState, action: AppAction): AppState | n
         ...initialState,
         geminiApiKey: state.geminiApiKey,
         stampSettings: state.stampSettings,
+        outputSettings: state.outputSettings,
         currentSessionId: null,
         lastSavedAt: null,
         saveStatus: 'idle',

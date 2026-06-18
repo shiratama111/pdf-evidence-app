@@ -7,6 +7,7 @@ import {
   getStampSymbol,
   removeMetadataIfNeeded,
   stampSegmentFirstPage,
+  type PdfEngineOptions,
   type PdfEngineContext,
 } from './helpers';
 
@@ -18,6 +19,7 @@ export async function mergeAllSegments(
   stampSettings: StampSettings | null,
   fontBytes: Uint8Array | null,
   onProgress?: (segmentIndex: number) => void,
+  options: PdfEngineOptions = {},
 ): Promise<Uint8Array> {
   const mergedDoc = await PDFDocument.create();
   const context: PdfEngineContext = {
@@ -29,7 +31,7 @@ export async function mergeAllSegments(
 
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
-    const appendResult = await appendSegmentPages(mergedDoc, seg, context, fontBytes);
+    const appendResult = await appendSegmentPages(mergedDoc, seg, context, fontBytes, options);
 
     if (seg.evidenceNumber && stampSettings && fontBytes) {
       const font = await embedStampFont(mergedDoc, fontBytes);

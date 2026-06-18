@@ -24,8 +24,13 @@ export function serializeAppState(state: AppState): {
   const sourceFiles: SerializedSourceFile[] = [];
   const binaries: Record<string, Uint8Array> = {};
   for (const sf of Object.values(state.sourceFiles)) {
-    const { arrayBuffer: _arrayBuffer, ...rest } = sf;
-    sourceFiles.push(rest);
+    sourceFiles.push({
+      id: sf.id,
+      name: sf.name,
+      pageCount: sf.pageCount,
+      fileSize: sf.fileSize,
+      type: sf.type,
+    });
     binaries[sf.id] = new Uint8Array(sf.arrayBuffer);
   }
 
@@ -41,6 +46,7 @@ export function serializeAppState(state: AppState): {
     segments: state.segments,
     stampSettings: state.stampSettings,
     stampEnabled: state.stampEnabled,
+    outputSettings: state.outputSettings,
     exportMode: state.exportMode,
   };
 
@@ -90,6 +96,7 @@ export function deserializeAppState(
     segments: json.state.segments,
     stampSettings: json.state.stampSettings,
     stampEnabled: json.state.stampEnabled,
+    outputSettings: json.state.outputSettings,
     exportMode: json.state.exportMode,
   };
 

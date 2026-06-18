@@ -1,8 +1,13 @@
 import { useCallback } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { mergeAllSegments } from '@/lib/pdf-engine';
+import type { Segment } from '@/types/pdf';
 
 export type PrintType = 'all' | 'selected';
+
+function countPages(segments: Segment[]): number {
+  return segments.reduce((total, segment) => total + segment.pageIds.length, 0);
+}
 
 /**
  * 印刷フック。エクスポートの mergeAllSegments を流用して
@@ -31,7 +36,17 @@ export function usePrint() {
       }
     }
 
-    dispatch({ type: 'PRINT_STARTED' });
+    const isA4Output = state.outputSettings.pageSizeMode === 'a4';
+    const totalA4Pages = isA4Output ? countPages(targetSegments) : 0;
+    const usePageProgress = isA4Output && totalA4Pages > 0;
+
+    dispatch({
+      type: 'PRINT_STARTED',
+      payload: {
+        message: usePageProgress ? `A4変換中 0/${totalA4Pages}` : '印刷用PDFを生成中...',
+      },
+    });
+    let pdfGenerationFinished = false;
 
     try {
       let fontBytes: Uint8Array | null = null;
@@ -43,13 +58,48 @@ export function usePrint() {
         }
       }
 
+      let processedA4Pages = 0;
+      const outputOptions = {
+        outputSettings: state.outputSettings,
+        onPageSizeProgress: usePageProgress
+          ? () => {
+              processedA4Pages++;
+              dispatch({
+                type: 'EXPORT_PROGRESS',
+                payload: {
+                  progress: Math.round((processedA4Pages / totalA4Pages) * 100),
+                  message: `A4変換中 ${processedA4Pages}/${totalA4Pages}`,
+                },
+              });
+            }
+          : undefined,
+      };
+
+      const onProgress = (idx: number) => {
+        if (usePageProgress) return;
+        dispatch({
+          type: 'EXPORT_PROGRESS',
+          payload: {
+            progress: Math.round(((idx + 1) / targetSegments.length) * 100),
+            message: `印刷用PDFを生成中 ${idx + 1}/${targetSegments.length}`,
+          },
+        });
+      };
+
       const mergedBytes = await mergeAllSegments(
         state.sourceFiles,
         state.pages,
         targetSegments,
         state.stampEnabled ? state.stampSettings : null,
         fontBytes,
+        onProgress,
+        outputOptions,
       );
+
+      // ローディング表示はPDF生成中だけに限定する。OS印刷ダイアログ側の応答待ちが
+      // 戻らない環境でも、アプリ本体を操作不能な状態にしないため。
+      pdfGenerationFinished = true;
+      dispatch({ type: 'PRINT_FINISHED' });
 
       const result = await api.printPdf(mergedBytes);
       if (!result.success && result.error && result.error !== 'cancelled') {
@@ -59,7 +109,9 @@ export function usePrint() {
       console.error('[print] error:', err);
       alert(`印刷に失敗しました: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      dispatch({ type: 'PRINT_FINISHED' });
+      if (!pdfGenerationFinished) {
+        dispatch({ type: 'PRINT_FINISHED' });
+      }
     }
   }, [
     state.sourceFiles,
@@ -68,6 +120,7 @@ export function usePrint() {
     state.selectedSegmentIds,
     state.stampEnabled,
     state.stampSettings,
+    state.outputSettings,
     dispatch,
   ]);
 

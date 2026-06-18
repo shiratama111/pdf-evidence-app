@@ -5,6 +5,7 @@ import type {
   SourceFile,
   StampSettings,
   ExportMode,
+  OutputSettings,
 } from './pdf';
 
 export const SESSION_FILE_VERSION = 1 as const;
@@ -20,6 +21,7 @@ export interface SerializedAppState {
   segments: Segment[];
   stampSettings: StampSettings;
   stampEnabled: boolean;
+  outputSettings: OutputSettings;
   exportMode: ExportMode;
 }
 

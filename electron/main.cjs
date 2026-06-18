@@ -85,6 +85,23 @@ function toNodeBuffer(bytes) {
   throw new TypeError(`Unsupported PDF byte payload: ${Object.prototype.toString.call(bytes)}`);
 }
 
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timer = null;
+  return new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1400,
@@ -104,8 +121,9 @@ function createWindow() {
   console.log('Loading:', indexPath, 'exists:', fs.existsSync(indexPath));
   win.loadFile(indexPath);
 
-  // Open DevTools only in development (not when packaged)
-  if (!app.isPackaged) {
+  // DevTools is opt-in for local debugging. Normal local launches should look
+  // the same as packaged app launches.
+  if (process.env.PDF_EVIDENCE_OPEN_DEVTOOLS === '1') {
     win.webContents.openDevTools();
   }
 
@@ -243,7 +261,7 @@ ipcMain.handle('get-default-output', async () => {
  * 旨のメッセージが出ることがあるが、そのまま OK すれば印刷自体は進む（プレビュー UI を
  * Electron が提供していないだけで、印刷ジョブは正常）。
  */
-ipcMain.handle('print:pdf', async (_event, bytes) => {
+ipcMain.handle('print:pdf', async (event, bytes) => {
   let tmpPath = null;
   let printWin = null;
   let cleanupTimer = null;
@@ -268,16 +286,31 @@ ipcMain.handle('print:pdf', async (_event, bytes) => {
     const stat = fs.statSync(tmpPath);
     console.log('[print:pdf] wrote', stat.size, 'bytes to', tmpPath);
 
+    const parent = BrowserWindow.fromWebContents(event.sender);
     printWin = new BrowserWindow({
       show: false,
+      parent: parent && !parent.isDestroyed() ? parent : undefined,
+      title: '印刷準備',
       webPreferences: {
         plugins: true,
         contextIsolation: true,
         nodeIntegration: false,
       },
     });
+    printWin.setMenuBarVisibility(false);
 
-    await printWin.loadFile(tmpPath);
+    await withTimeout(
+      printWin.loadFile(tmpPath),
+      15000,
+      '印刷用PDFの読み込みがタイムアウトしました。',
+    );
+
+    // Windowsでは非表示ウィンドウからの印刷ダイアログが前面に出ない場合があるため、
+    // 印刷直前だけ表示してフォーカスする。
+    if (!printWin.isDestroyed()) {
+      printWin.show();
+      printWin.focus();
+    }
     // Chrome PDF Viewer が初期化される時間を確保
     await new Promise((resolve) => setTimeout(resolve, 600));
 

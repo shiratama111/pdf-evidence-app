@@ -9,15 +9,29 @@ export function processingReducer(state: AppState, action: AppAction): AppState 
     case 'LOADING_FINISHED':
       return { ...state, isLoading: false, loadingMessage: '' };
     case 'EXPORT_STARTED':
-      return { ...state, isExporting: true, exportProgress: 0 };
+      return {
+        ...state,
+        isExporting: true,
+        exportProgress: 0,
+        exportMessage: action.payload?.message ?? 'PDFを生成中...',
+      };
     case 'EXPORT_PROGRESS':
-      return { ...state, exportProgress: action.payload.progress };
+      return {
+        ...state,
+        exportProgress: action.payload.progress,
+        exportMessage: action.payload.message ?? state.exportMessage,
+      };
     case 'EXPORT_FINISHED':
-      return { ...state, isExporting: false, exportProgress: 100 };
+      return { ...state, isExporting: false, exportProgress: 100, exportMessage: '' };
     case 'PRINT_STARTED':
-      return { ...state, isPrinting: true };
+      return {
+        ...state,
+        isPrinting: true,
+        exportProgress: 0,
+        exportMessage: action.payload?.message ?? '印刷用PDFを生成中...',
+      };
     case 'PRINT_FINISHED':
-      return { ...state, isPrinting: false };
+      return { ...state, isPrinting: false, exportProgress: 100, exportMessage: '' };
     case 'GEMINI_API_KEY_SET':
       localStorage.setItem('waketena_gemini_key', action.payload.key);
       return { ...state, geminiApiKey: action.payload.key };

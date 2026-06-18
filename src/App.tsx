@@ -10,8 +10,20 @@ import { UpdateNotifier } from '@/components/update/UpdateNotifier';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
-  const { segments, isLoading, loadingMessage, isPreviewOpen, stampEnabled } = useAppState();
+  const {
+    segments,
+    isLoading,
+    loadingMessage,
+    isExporting,
+    isPrinting,
+    exportMessage,
+    exportProgress,
+    isPreviewOpen,
+    stampEnabled,
+  } = useAppState();
   const hasFiles = segments.length > 0;
+  const showBlockingProgress = isLoading || isExporting || isPrinting;
+  const progressMessage = isLoading ? loadingMessage : exportMessage;
 
   return (
     <div className="flex flex-col h-screen">
@@ -46,11 +58,21 @@ export default function App() {
       <UpdateNotifier />
 
       {/* Loading overlay */}
-      {isLoading && (
+      {showBlockingProgress && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 shadow-2xl flex items-center gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            <span className="text-gray-700">{loadingMessage}</span>
+          <div className="bg-white rounded-xl p-6 shadow-2xl min-w-[280px]">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              <span className="text-gray-700">{progressMessage}</span>
+            </div>
+            {(isExporting || isPrinting) && (
+              <div className="mt-4 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all"
+                  style={{ width: `${Math.max(0, Math.min(100, exportProgress))}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

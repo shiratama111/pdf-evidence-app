@@ -1,6 +1,7 @@
 import { PDFDocument, degrees, type PDFFont } from 'pdf-lib';
 import type {
   EvidenceNumber,
+  OutputSettings,
   PageId,
   PdfPage,
   Segment,
@@ -15,6 +16,7 @@ import {
   getEffectiveSymbol,
   removeMetadata,
 } from '../pdf-stamper';
+import { normalizePageToA4IfNeeded } from './page-size';
 
 export type SourceDocGetter = (sourceFileId: string) => Promise<PDFDocument>;
 
@@ -22,6 +24,11 @@ export interface PdfEngineContext {
   sourceFiles: Record<string, SourceFile>;
   pages: Record<PageId, PdfPage>;
   getDoc: SourceDocGetter;
+}
+
+export interface PdfEngineOptions {
+  outputSettings?: OutputSettings;
+  onPageSizeProgress?: () => void;
 }
 
 export interface SegmentAppendResult {
@@ -67,6 +74,7 @@ export async function appendSegmentPages(
   segment: Segment,
   context: PdfEngineContext,
   fontBytes: Uint8Array | null,
+  options: PdfEngineOptions = {},
 ): Promise<SegmentAppendResult> {
   const firstPageIndex = pdfDoc.getPageCount();
   let addedAny = false;
@@ -81,18 +89,29 @@ export async function appendSegmentPages(
       copiedPage.setRotation(degrees(page.rotation));
     }
     pdfDoc.addPage(copiedPage);
+    const addedPageIndex = pdfDoc.getPageCount() - 1;
     addedAny = true;
 
     if (page.redactions.length > 0) {
       const sourceFile = context.sourceFiles[page.sourceFileId];
       await applyPageRedactions(
         pdfDoc,
-        pdfDoc.getPageCount() - 1,
+        addedPageIndex,
         page.redactions,
         sourceFile.arrayBuffer,
         page.sourcePageIndex,
         fontBytes,
       );
+    }
+
+    await normalizePageToA4IfNeeded(
+      pdfDoc,
+      addedPageIndex,
+      options.outputSettings,
+    );
+
+    if (options.outputSettings?.pageSizeMode === 'a4') {
+      options.onPageSizeProgress?.();
     }
   }
 

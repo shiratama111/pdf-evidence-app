@@ -1,6 +1,6 @@
 import type { AppState } from '@/types/pdf';
 import type { AppAction } from './actions';
-import { DEFAULT_STAMP_SETTINGS, normalizeBranchFormat } from '@/constants/defaults';
+import { DEFAULT_OUTPUT_SETTINGS, DEFAULT_STAMP_SETTINGS, normalizeBranchFormat } from '@/constants/defaults';
 import { pagesReducer } from './reducers/pages-reducer';
 import { processingReducer } from './reducers/processing-reducer';
 import { segmentsReducer } from './reducers/segments-reducer';
@@ -22,6 +22,14 @@ function loadStampSettings() {
   return DEFAULT_STAMP_SETTINGS;
 }
 
+function loadOutputSettings() {
+  try {
+    const saved = localStorage.getItem('waketena_output_settings');
+    if (saved) return { ...DEFAULT_OUTPUT_SETTINGS, ...JSON.parse(saved) };
+  } catch { /* ignore */ }
+  return DEFAULT_OUTPUT_SETTINGS;
+}
+
 export const initialState: AppState = {
   sourceFiles: {},
   pages: {},
@@ -34,11 +42,13 @@ export const initialState: AppState = {
   isExporting: false,
   isPrinting: false,
   exportProgress: 0,
+  exportMessage: '',
   geminiApiKey: localStorage.getItem('waketena_gemini_key'),
   aiSuggestions: null,
   isAiProcessing: false,
   stampEnabled: false,
   stampSettings: loadStampSettings(),
+  outputSettings: loadOutputSettings(),
   exportMode: 'split_pdfs',
   selectedSegmentIds: [],
   focusedSegmentId: null,

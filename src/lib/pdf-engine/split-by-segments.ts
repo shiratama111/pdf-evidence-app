@@ -4,6 +4,7 @@ import {
   appendSegmentPages,
   collectMergedGroupIds,
   createSourceDocGetter,
+  type PdfEngineOptions,
   type PdfEngineContext,
 } from './helpers';
 
@@ -15,6 +16,7 @@ export async function splitBySegments(
   pages: Record<PageId, PdfPage>,
   segments: Segment[],
   onProgress?: (segmentIndex: number) => void,
+  options: PdfEngineOptions = {},
 ): Promise<Map<string, Uint8Array>> {
   const result = new Map<string, Uint8Array>();
   const context: PdfEngineContext = {
@@ -39,7 +41,7 @@ export async function splitBySegments(
       const newDoc = await PDFDocument.create();
 
       for (const groupSegment of groupSegs) {
-        await appendSegmentPages(newDoc, groupSegment, context, null);
+        await appendSegmentPages(newDoc, groupSegment, context, null, options);
       }
 
       const pdfBytes = await newDoc.save();
@@ -49,7 +51,7 @@ export async function splitBySegments(
     }
 
     const newDoc = await PDFDocument.create();
-    await appendSegmentPages(newDoc, seg, context, null);
+    await appendSegmentPages(newDoc, seg, context, null, options);
 
     const pdfBytes = await newDoc.save();
     result.set(seg.id, pdfBytes);

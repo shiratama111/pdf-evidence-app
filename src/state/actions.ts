@@ -1,4 +1,4 @@
-import type { PageId, PdfPage, Segment, SourceFile, AiSplitSuggestion, StampSettings, ExportMode, EvidenceNumber, RedactionArea, AppState } from '@/types/pdf';
+import type { PageId, PdfPage, Segment, SourceFile, AiSplitSuggestion, StampSettings, OutputSettings, ExportMode, EvidenceNumber, RedactionArea, AppState } from '@/types/pdf';
 
 export type AppAction =
   // File operations
@@ -34,10 +34,10 @@ export type AppAction =
   // Processing
   | { type: 'LOADING_STARTED'; payload: { message: string } }
   | { type: 'LOADING_FINISHED' }
-  | { type: 'EXPORT_STARTED' }
-  | { type: 'EXPORT_PROGRESS'; payload: { progress: number } }
+  | { type: 'EXPORT_STARTED'; payload?: { message?: string } }
+  | { type: 'EXPORT_PROGRESS'; payload: { progress: number; message?: string } }
   | { type: 'EXPORT_FINISHED' }
-  | { type: 'PRINT_STARTED' }
+  | { type: 'PRINT_STARTED'; payload?: { message?: string } }
   | { type: 'PRINT_FINISHED' }
 
   // AI
@@ -51,6 +51,7 @@ export type AppAction =
   // Stamp & Evidence
   | { type: 'STAMP_ENABLED_TOGGLED' }
   | { type: 'STAMP_SETTINGS_UPDATED'; payload: { settings: Partial<StampSettings> } }
+  | { type: 'OUTPUT_SETTINGS_UPDATED'; payload: { settings: Partial<OutputSettings> } }
   | { type: 'EXPORT_MODE_SET'; payload: { mode: ExportMode } }
   | { type: 'EVIDENCE_NUMBER_SET'; payload: { segmentId: string; evidenceNumber: EvidenceNumber | null } }
   | { type: 'EVIDENCE_NUMBERS_AUTO_ASSIGN' }

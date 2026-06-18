@@ -2,8 +2,13 @@ import { useCallback } from 'react';
 import { useAppState, useAppDispatch } from '@/state/AppContext';
 import { splitBySegments, splitWithStamp, mergeAllSegments } from '@/lib/pdf-engine';
 import { downloadPdf, sanitizeFilename } from '@/lib/file-utils';
+import type { Segment } from '@/types/pdf';
 
 export type ExportType = 'individual' | 'merged' | 'selected';
+
+function countPages(segments: Segment[]): number {
+  return segments.reduce((total, segment) => total + segment.pageIds.length, 0);
+}
 
 export function useExport() {
   const state = useAppState();
@@ -32,11 +37,44 @@ export function useExport() {
       outputDir = selected;
     }
 
-    dispatch({ type: 'EXPORT_STARTED' });
+    const isA4Output = state.outputSettings.pageSizeMode === 'a4';
+    const totalA4Pages = isA4Output ? countPages(targetSegments) : 0;
+    const usePageProgress = isA4Output && totalA4Pages > 0;
+
+    dispatch({
+      type: 'EXPORT_STARTED',
+      payload: {
+        message: usePageProgress ? `A4変換中 0/${totalA4Pages}` : 'PDFを生成中...',
+      },
+    });
 
     try {
+      let processedA4Pages = 0;
+      const outputOptions = {
+        outputSettings: state.outputSettings,
+        onPageSizeProgress: usePageProgress
+          ? () => {
+              processedA4Pages++;
+              dispatch({
+                type: 'EXPORT_PROGRESS',
+                payload: {
+                  progress: Math.round((processedA4Pages / totalA4Pages) * 100),
+                  message: `A4変換中 ${processedA4Pages}/${totalA4Pages}`,
+                },
+              });
+            }
+          : undefined,
+      };
+
       const onProgress = (idx: number) => {
-        dispatch({ type: 'EXPORT_PROGRESS', payload: { progress: Math.round(((idx + 1) / targetSegments.length) * 100) } });
+        if (usePageProgress) return;
+        dispatch({
+          type: 'EXPORT_PROGRESS',
+          payload: {
+            progress: Math.round(((idx + 1) / targetSegments.length) * 100),
+            message: `PDF生成中 ${idx + 1}/${targetSegments.length}`,
+          },
+        });
       };
 
       if (type === 'merged') {
@@ -54,6 +92,7 @@ export function useExport() {
           state.stampEnabled ? state.stampSettings : null,
           fontBytes,
           onProgress,
+          outputOptions,
         );
         const filename = '統合ドキュメント.pdf';
 
@@ -78,6 +117,7 @@ export function useExport() {
           const results = await splitWithStamp(
             state.sourceFiles, state.pages, targetSegments,
             state.stampSettings, fontBytes, onProgress,
+            outputOptions,
           );
 
           for (const r of results) {
@@ -94,7 +134,13 @@ export function useExport() {
             savedCount++;
           }
         } else {
-          const result = await splitBySegments(state.sourceFiles, state.pages, targetSegments, onProgress);
+          const result = await splitBySegments(
+            state.sourceFiles,
+            state.pages,
+            targetSegments,
+            onProgress,
+            outputOptions,
+          );
           for (const seg of targetSegments) {
             const bytes = result.get(seg.id);
             if (!bytes) continue;
@@ -131,7 +177,7 @@ export function useExport() {
     } finally {
       dispatch({ type: 'EXPORT_FINISHED' });
     }
-  }, [state.sourceFiles, state.pages, state.segments, state.selectedSegmentIds, state.stampEnabled, state.stampSettings, dispatch]);
+  }, [state.sourceFiles, state.pages, state.segments, state.selectedSegmentIds, state.stampEnabled, state.stampSettings, state.outputSettings, dispatch]);
 
   return {
     exportIndividual: () => exportWith('individual'),

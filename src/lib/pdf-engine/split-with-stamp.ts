@@ -9,6 +9,7 @@ import {
   getStampSymbol,
   removeMetadataIfNeeded,
   stampSegmentFirstPage,
+  type PdfEngineOptions,
   type PdfEngineContext,
   type SegmentAppendResult,
 } from './helpers';
@@ -105,6 +106,7 @@ export async function splitWithStamp(
   stampSettings: StampSettings,
   fontBytes: Uint8Array | null,
   onProgress?: (segmentIndex: number) => void,
+  options: PdfEngineOptions = {},
 ): Promise<StampedExportResult[]> {
   const results: StampedExportResult[] = [];
   const context: PdfEngineContext = {
@@ -134,7 +136,7 @@ export async function splitWithStamp(
 
         for (const groupSegment of groupSegs) {
           appendResults.push(
-            await appendSegmentPages(newDoc, groupSegment, context, fontBytes),
+            await appendSegmentPages(newDoc, groupSegment, context, fontBytes, options),
           );
         }
 
@@ -170,7 +172,7 @@ export async function splitWithStamp(
 
     try {
       const newDoc = await PDFDocument.create();
-      const appendResult = await appendSegmentPages(newDoc, seg, context, fontBytes);
+      const appendResult = await appendSegmentPages(newDoc, seg, context, fontBytes, options);
 
       if (seg.evidenceNumber && fontBytes) {
         const font = await embedStampFont(newDoc, fontBytes);
@@ -222,6 +224,7 @@ export async function splitWithStampBrowser(
   stampSettings: StampSettings,
   fontBytes: Uint8Array | null,
   onProgress?: (segmentIndex: number) => void,
+  options: PdfEngineOptions = {},
 ): Promise<Map<string, { name: string; bytes: Uint8Array }>> {
   const results = await splitWithStamp(
     sourceFiles,
@@ -230,6 +233,7 @@ export async function splitWithStampBrowser(
     stampSettings,
     fontBytes,
     onProgress,
+    options,
   );
   const map = new Map<string, { name: string; bytes: Uint8Array }>();
 

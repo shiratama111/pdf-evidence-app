@@ -1,4 +1,4 @@
-import type { BranchFormat, StampSettings } from '@/types/pdf';
+import type { BranchFormat, OutputSettings, StampSettings } from '@/types/pdf';
 
 /** Segment color palette */
 export const SEGMENT_COLORS = [
@@ -70,4 +70,9 @@ export const DEFAULT_STAMP_SETTINGS: StampSettings = {
   showBackground: true,
   removeMetadata: false,
   startNum: 1,
+};
+
+/** デフォルトの出力設定 */
+export const DEFAULT_OUTPUT_SETTINGS: OutputSettings = {
+  pageSizeMode: 'original',
 };

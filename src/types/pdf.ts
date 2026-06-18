@@ -74,6 +74,13 @@ export type StampFormat = 'mints' | 'mints-formal' | 'simple' | 'hyphen' | 'form
 export type BranchFormat = 'no' | 'hyphen' | 'fullwidth-hyphen';
 
 export type ExportMode = 'split_pdfs' | 'zip';
+export type PageSizeMode = 'original' | 'a4';
+
+/** PDF出力設定 */
+export interface OutputSettings {
+  /** original: 元サイズ維持 / a4: A4以外のページをA4へ縮小 */
+  pageSizeMode: PageSizeMode;
+}
 
 /** AI分割提案 */
 export interface AiSplitSuggestion {
@@ -99,11 +106,13 @@ export interface AppState {
   isExporting: boolean;
   isPrinting: boolean;
   exportProgress: number;
+  exportMessage: string;
   geminiApiKey: string | null;
   aiSuggestions: AiSplitSuggestion | null;
   isAiProcessing: boolean;
   stampEnabled: boolean;
   stampSettings: StampSettings;
+  outputSettings: OutputSettings;
   exportMode: ExportMode;
   selectedSegmentIds: string[];
   focusedSegmentId: string | null;

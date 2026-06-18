@@ -8,9 +8,10 @@ import { useAppVersion } from '@/hooks/useAppVersion';
 import {
   FilePlus, Download, Printer, RotateCcw, RotateCw, FlipVertical2, ChevronDown, PanelRight,
   Sparkles, Loader2, Stamp, Undo2, Redo2,
-  FolderOpen, Check, AlertTriangle,
+  FolderOpen, Check, AlertTriangle, FileOutput,
 } from 'lucide-react';
 import { LibraryModal } from '@/components/library/LibraryModal';
+import type { PageSizeMode } from '@/types/pdf';
 
 export function Header() {
   const state = useAppState();
@@ -151,6 +152,17 @@ export function Header() {
         <PanelRight className="w-4 h-4" />
       </button>
 
+      {/* Output settings */}
+      {hasFiles && (
+        <OutputSettingsSelect
+          pageSizeMode={state.outputSettings.pageSizeMode}
+          onChange={(pageSizeMode) => dispatch({
+            type: 'OUTPUT_SETTINGS_UPDATED',
+            payload: { settings: { pageSizeMode } },
+          })}
+        />
+      )}
+
       {/* Print */}
       {hasFiles && <PrintDropdown
         isPrinting={isPrinting}
@@ -171,6 +183,32 @@ export function Header() {
       {/* Library Modal */}
       <LibraryModal isOpen={isLibraryOpen} onClose={() => setIsLibraryOpen(false)} />
     </header>
+  );
+}
+
+function OutputSettingsSelect({
+  pageSizeMode,
+  onChange,
+}: {
+  pageSizeMode: PageSizeMode;
+  onChange: (pageSizeMode: PageSizeMode) => void;
+}) {
+  return (
+    <label
+      className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-700 bg-white"
+      title="PDF出力・印刷時の用紙サイズ"
+    >
+      <FileOutput className="w-4 h-4 text-gray-500" />
+      <span className="text-xs text-gray-500">出力設定</span>
+      <select
+        className="text-sm bg-transparent outline-none"
+        value={pageSizeMode}
+        onChange={(e) => onChange(e.target.value as PageSizeMode)}
+      >
+        <option value="original">元サイズ</option>
+        <option value="a4">A4に統一</option>
+      </select>
+    </label>
   );
 }
 

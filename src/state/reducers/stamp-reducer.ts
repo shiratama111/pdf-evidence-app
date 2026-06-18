@@ -14,6 +14,11 @@ export function stampReducer(state: AppState, action: AppAction): AppState | nul
       localStorage.setItem('waketena_stamp_settings', JSON.stringify(newSettings));
       return { ...state, stampSettings: newSettings };
     }
+    case 'OUTPUT_SETTINGS_UPDATED': {
+      const newSettings = { ...state.outputSettings, ...action.payload.settings };
+      localStorage.setItem('waketena_output_settings', JSON.stringify(newSettings));
+      return { ...state, outputSettings: newSettings };
+    }
     case 'EXPORT_MODE_SET':
       return { ...state, exportMode: action.payload.mode };
     default:
