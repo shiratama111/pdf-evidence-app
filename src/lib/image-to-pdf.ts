@@ -19,20 +19,24 @@ export async function imageToPdfBuffer(
   }
 
   // A4 size in points: 595.28 x 841.89
-  const A4_WIDTH = 595.28;
-  const A4_HEIGHT = 841.89;
+  // 横長画像は用紙も横向き（A4ランドスケープ）にして余白を減らす
+  const A4_SHORT = 595.28;
+  const A4_LONG = 841.89;
+  const isLandscape = image.width > image.height;
+  const pageW = isLandscape ? A4_LONG : A4_SHORT;
+  const pageH = isLandscape ? A4_SHORT : A4_LONG;
   const MARGIN = 36; // 0.5 inch margin
 
-  const maxW = A4_WIDTH - MARGIN * 2;
-  const maxH = A4_HEIGHT - MARGIN * 2;
+  const maxW = pageW - MARGIN * 2;
+  const maxH = pageH - MARGIN * 2;
   const scale = Math.min(maxW / image.width, maxH / image.height, 1);
   const drawW = image.width * scale;
   const drawH = image.height * scale;
 
-  const page = doc.addPage([A4_WIDTH, A4_HEIGHT]);
+  const page = doc.addPage([pageW, pageH]);
   page.drawImage(image, {
-    x: (A4_WIDTH - drawW) / 2,
-    y: (A4_HEIGHT - drawH) / 2,
+    x: (pageW - drawW) / 2,
+    y: (pageH - drawH) / 2,
     width: drawW,
     height: drawH,
   });
